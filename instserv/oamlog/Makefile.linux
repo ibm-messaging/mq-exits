@@ -1,0 +1,26 @@
+
+
+# Where is MQ installed
+MQ=/opt/mqm
+
+SRC = oamlog.c
+
+# Compile options for 64-bit
+CC64OPTS = -m64 -I$(MQ)/inc
+# Linker options to produce a shared object
+LDOPTS = -shared -fPIC
+LIBS64=-L$(MQ)/lib64
+
+# Build it into the regular directory for exits
+all:  /var/mqm/exits64/oamlog_r
+
+# Do the copy to final location
+/var/mqm/exits64/oamlog_r: oamlog_r
+	rm -f $@
+	cp -f oamlog_r $@
+	chmod 555 $@
+
+# Build the module locally
+oamlog_r: $(SRC) Makefile.linux
+	gcc $(CC64OPTS) -D_REENTRANT  -o $@ $(SRC) \
+	        $(LIBS64)  -lmqmzf_r -lmqm_r $(LDOPTS)
