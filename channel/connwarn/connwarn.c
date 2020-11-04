@@ -6,9 +6,19 @@
 /*                                                                           */
 /* AUTHOR: Rob Parker, IBM Hursley                                           */
 /*                                                                           */
-/* PLEASE NOTE - This code is supplied "AS IS" with no                       */
-/*              warranty or liability. It is not part of                     */
-/*              any product.                                                 */
+/*     Licensed under the Apache License, Version 2.0 (the "License");       */
+/*     you may not use this file except in compliance with the License.      */
+/*     You may obtain a copy of the License at                               */
+/*                                                                           */
+/*              http://www.apache.org/licenses/LICENSE-2.0                   */
+/*                                                                           */
+/*     Unless required by applicable law or agreed to in writing, software   */
+/*     distributed under the License is distributed on an "AS IS" BASIS,     */
+/*     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,                         */
+/*     either express or implied.                                            */
+/*                                                                           */
+/*     See the License for the specific language governing permissions and   */
+/*     limitations under the License.                                        */
 /*                                                                           */
 /* Description: A sample Security exit for IBM MQ that provides Connection   */
 /*              Authentication warn mode functionality.                      */
@@ -27,33 +37,78 @@
 #include <stdlib.h>
 
 /* OS specific includes */
-#ifdef OS_WINDOWS
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
     #define MQ_FNAME_MAX _MAX_FNAME
     #define MQ_PATH_MAX _MAX_PATH
     #include <windows.h>
     #include <winbase.h>
     #define DllExport   __declspec( dllexport )
-#else
+#elif MQPL_NATIVE==MQPL_UNIX
     #include <limits.h>
     #include <sys/file.h>
+    #include <unistd.h>
     #define MQ_FNAME_MAX NAME_MAX
     #define MQ_PATH_MAX PATH_MAX
     #define DllExport
+#else
+    #error "UNSUPPORTED PLATFORM"
 #endif
 
+/* Structure that contains values to be written to the log */
+struct logValues {
+    char * timestamp;
+    char * conname;
+    char * remoteAppUser;
+    MQBOOL CDset;
+    char * CDUser;
+    MQBOOL CSPSet;
+    int    CSPUserLen;
+    char * CSPUser;
+    MQBOOL identicalCDCSP;
+    MQBOOL CSPValid;
+};
+#define DEFAULT_LOGVALUES "", "", "", FALSE, "", FALSE, 0, "", FALSE, FALSE
+
 /* Prototypes */
-MQBOOL validateCredentials(PMQCSP pCSP);
+int writeOutputEntry(char *, struct logValues);
+int validateCredentials(PMQCSP pCSP);
 void chlname_to_filename(char * chlname, char * filename, int maxsize);
 void trim_whitespace(char * toTrim);
 
 /* Constants */
+#define OK    0
+#define FAIL  -1
 #define FALSE 0
 #define TRUE  1
 
-#ifdef OS_WINDOWS
+/* The max line a log entries line could be. As we may print */
+/* a full MQCSP and the user in that is the largest          */
+/* parameter we should base off that with some extra         */
+#define MAX_LOG_LINE_LEN MQ_CLIENT_USER_ID_LENGTH + 50
+
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
     #define DEFAULT_LOG_LOCATION "C:\\ProgramData\\IBM\\MQ\\errors"
-#else
+    #define DEFAULT_INSTALL_LOCATION "C:\\Program Files\\IBM\\MQ"
+#elif MQPL_NATIVE==MQPL_UNIX
     #define DEFAULT_LOG_LOCATION "/var/mqm/errors/"
+    #define DEFAULT_INSTALL_LOCATION "/opt/mqm"
+#else
+    /* Not supported */
+#endif
+
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
+/* This marco is used to write out a line to a file on windows. */
+#define WINDOWS_WRITE_ENTRY(str, parms)                                           \
+{                                                                                 \
+    snprintf(buffer, MAX_LOG_LINE_LEN, str, parms);                               \
+    dwBytesToWrite = (DWORD)strlen(buffer);                                       \
+    bErrorFlag = WriteFile(hFile, buffer, dwBytesToWrite, &dwBytesWritten, NULL); \
+    if(bErrorFlag == FALSE || dwBytesWritten != dwBytesToWrite)                   \
+    {                                                                             \
+        return FAIL;                                                              \
+    }                                                                             \
+    memset(buffer, 0, MAX_LOG_LINE_LEN);                                          \
+}
 #endif
 
 /* 
@@ -73,13 +128,10 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
     PMQCD  pCD    = (PMQCD)pChannelDefinition;
     PMQCSP pCSP;
 
-    MQBOOL mqcdCredentials    = FALSE;
-    MQBOOL mqcspCredentials   = FALSE;
-    MQBOOL mqcspCredsValid    = FALSE;
-    MQBOOL mqcspismqcd        = FALSE;
     MQBOOL defaultLogLocation = TRUE;
-    
-    FILE * File;
+    int rc = OK;
+
+    struct logValues outputValues                   = {DEFAULT_LOGVALUES};
     char filename[MQ_FNAME_MAX + 1]                 = {0};
     char path[MQ_PATH_MAX + 1]                      = {0};
     char connectionName[MQ_CONN_NAME_LENGTH + 1]    = {0}; 
@@ -100,12 +152,12 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
             strncpy(path,pParms->ExitData, MQ_PATH_MAX);
             trim_whitespace(&path[0]);
             /* Check we have a trailing slash */
-#ifdef OS_WINDOWS
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
             if(path[strlen(path) -1] != '\\')
             {
                 strcat(path, "\\");
             }
-#else
+#elif MQPL_NATIVE==MQPL_UNIX
             if(path[strlen(path) -1] != '/')
             {
                 strcat(path, "/");
@@ -126,7 +178,7 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
         if(pCD->Version >= MQCD_VERSION_2 && 
         (pCD->RemotePassword[0] != ' ' && pCD->RemotePassword[0] != '\0'))
         {
-            mqcdCredentials = TRUE;
+            outputValues.CDset = TRUE;
             strncpy(mqcdUser, pCD->RemoteUserIdentifier, MQ_USER_ID_LENGTH);
         }
         else
@@ -142,13 +194,26 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
             pCSP = (PMQCSP) pParms->SecurityParms;
             if(pCSP->CSPUserIdLength > 0 || pCSP->CSPPasswordLength > 0)
             {
-                mqcspCredentials = TRUE;
-                mqcspCredsValid = validateCredentials(pCSP);
+                outputValues.CSPSet = TRUE;
+                outputValues.CSPUser = (char *)pCSP->CSPUserIdPtr;
+                outputValues.CSPUserLen = pCSP->CSPUserIdLength;
+
+                int validaterc = validateCredentials(pCSP);
+                if(validaterc == FALSE || validaterc == TRUE){
+                    outputValues.CSPValid = validaterc;
+                }
+                else
+                {
+                    /* If we get here the call to validate the credentials failed */
+                    /* A likely cause is that amqoampx was not found */
+                    pParms->ExitResponse = MQXCC_FAILED;
+                    return;
+                }
             }
         }
         
         /* If we have both MQCD and MQCSP credentials we should check if they are the same */
-        if(mqcdCredentials && mqcspCredentials)
+        if(outputValues.CDset && outputValues.CSPSet)
         {
             char cdUser[MQ_USER_ID_LENGTH + 1]  = {0};
             char cdPass[MQ_PASSWORD_LENGTH + 1] = {0};
@@ -164,7 +229,7 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
                 if((strncmp(cdUser, pCSP->CSPUserIdPtr, pCSP->CSPUserIdLength) == 0) &&
                    (strncmp(cdPass, pCSP->CSPPasswordPtr, pCSP->CSPPasswordLength) == 0))
                 {
-                    mqcspismqcd = TRUE;
+                    outputValues.identicalCDCSP = TRUE;
                 }
             }
         }
@@ -191,62 +256,48 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
         /* We copy and trim the various fields because we should not edit them in the MQCD/MQCXP */
         trim_whitespace(connectionName);
         trim_whitespace(remoteUser);
-        if(mqcdCredentials)
+
+        if(outputValues.CDset)
         {
             trim_whitespace(mqcdUser);
         }
 
-WRITE_LOG:
-        /* Now open and lock the log file */
-        File = fopen(path, "a");
-        if(File)
+        /* Now write out the output! */
+        outputValues.conname = connectionName;
+        outputValues.remoteAppUser = remoteUser;
+        outputValues.CDUser = mqcdUser;
+
         {
             /* Generate timestamp in RFC 3339 format */
             time_t rawtime;
             struct tm * timeinfo;
             char back[40] = {0};
-            char * timestamp = &back[0];
+            outputValues.timestamp = &back[0];
             time ( &rawtime );
             timeinfo = localtime ( &rawtime );
-            strftime (timestamp, 40, "%FT%T%z",timeinfo);
-   
-#ifdef OS_UNIX
-            /* Lock the file on UNIX */
-            flock(fileno(File), LOCK_EX);
-#endif
-            /* Write the log output */
-            fprintf(File, "%s\nConnection from %s running as %s\n", timestamp, connectionName, remoteUser);
-            fprintf(File, "           MQCD Credentials Supplied: %s (%s)\n", (mqcdCredentials) ? "Y" : "N", mqcdUser);
-            fprintf(File, "          MQCSP Credentials Supplied: %s (%.*s)\n", (mqcspCredentials) ? "Y" : "N", (mqcspCredentials) ? pCSP->CSPUserIdLength : 3, (mqcspCredentials) ? (char *)pCSP->CSPUserIdPtr : "N/A");
-            fprintf(File, "MQCD and MQCSP Credentials Identical: %s\n", (mqcdCredentials) ? (mqcspismqcd) ? "Y (User Case insensitive)" : "N" : "N/A");
-            fprintf(File, "             MQCSP Credentials Valid: %s\n", (mqcspCredentials) ? (mqcspCredsValid) ? "Y" : "N" : "N/A");
-            fprintf(File, "---------------------------------------\n");
+            strftime (outputValues.timestamp, 40, "%FT%T%z",timeinfo);
 
-#ifdef OS_UNIX
-            /* Remove our Lock on the file */
-            flock(fileno(File), LOCK_UN);
-#endif
-            /* Close the file */
-            fclose(File);
-        }
-        else
-        {
-            /* We failed to get the file handle. */
-            /* Can we try and log to the default location as a backup? */
-            if(defaultLogLocation == FALSE)
+            rc = writeOutputEntry(path, outputValues);
+            if(rc == FAIL)
             {
-                defaultLogLocation = TRUE;
-                memset(path, '\0', strlen(path));
-                strcpy(path, DEFAULT_LOG_LOCATION);
-                strncat(path, filename, MQ_PATH_MAX - strlen(path));
-                goto WRITE_LOG;
-            }
-            else 
-            {
-                /* If we get here we've already tried the default location */
-                /* Fail with MQXCC_FAILED which will fail the connection   */
-                /* with an error in the queue manager logs.                */
-                pParms->ExitResponse = MQXCC_FAILED;
+                /* We failed to get the file handle. */
+                /* Can we try and log to the default location as a backup? */
+                if(defaultLogLocation == FALSE)
+                {
+                    memset(path, '\0', strlen(path));
+                    strcpy(path, DEFAULT_LOG_LOCATION);
+                    strncat(path, filename, MQ_PATH_MAX - strlen(path));
+                    rc = writeOutputEntry(path, outputValues);
+                }
+
+                if (rc == FAIL)
+                {
+                    /* If we get here we've already tried the default location */
+                    /* or we failed when we tried to fall back to the default.  */
+                    /* Fail with MQXCC_FAILED which will fail the connection   */
+                    /* with an error in the queue manager logs.                */
+                    pParms->ExitResponse = MQXCC_FAILED;
+                }
             }
         }
     }    
@@ -255,7 +306,7 @@ WRITE_LOG:
 /* 
     Channel Exit standard function. Empty on purpose.
 */
-void MQENTRY MQStart ( PMQCXP  pChannelExitParms
+DllExport void MQENTRY MQStart ( PMQCXP  pChannelExitParms
                      , PMQCD   pChannelDefinition
                      , PMQLONG pDataLength
                      , PMQLONG pAgentBufferLength
@@ -264,6 +315,106 @@ void MQENTRY MQStart ( PMQCXP  pChannelExitParms
                      , PMQPTR  pExitBufferAddr
                      )
 {;}
+
+/*
+    Function for opening, locking and writing the log entry to a given file location
+*/
+int writeOutputEntry(char * path, struct logValues outputValues)
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
+{
+    HANDLE hFile;
+    char buffer[MAX_LOG_LINE_LEN + 1] = {0};
+    DWORD dwBytesToWrite, dwBytesWritten, dwPos;
+    BOOL bErrorFlag = FALSE;
+
+    // Open the file and lock it for this process
+    hFile = CreateFileA(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if(hFile == INVALID_HANDLE_VALUE)
+    {
+        return FAIL;
+    }
+
+    dwPos = SetFilePointer(hFile, 0, NULL, FILE_END);
+
+    // Write out the log entries
+    WINDOWS_WRITE_ENTRY("-%s", "\n");
+    WINDOWS_WRITE_ENTRY("  timestamp: \"%s\"\n", outputValues.timestamp);
+    WINDOWS_WRITE_ENTRY("  remote_conname: \"%s\"\n", outputValues.conname);
+    WINDOWS_WRITE_ENTRY("  remote_appuser: \"%s\"\n", outputValues.remoteAppUser);
+    WINDOWS_WRITE_ENTRY("  MQCD_set: %s\n", (outputValues.CDset) ? "true" : "false");
+    WINDOWS_WRITE_ENTRY("  MQCD_user: \"%s\"\n", (outputValues.CDset) ? outputValues.CDUser : "");
+    WINDOWS_WRITE_ENTRY("  MQCSP_set: %s\n", (outputValues.CSPSet) ? "true" : "false");
+    if(outputValues.CSPSet)
+    {
+        snprintf(buffer, MAX_LOG_LINE_LEN, "  MQCSP_user: \"%.*s\"\n", outputValues.CSPUserLen, outputValues.CSPUser);
+        dwBytesToWrite = (DWORD)strlen(buffer);
+        bErrorFlag = WriteFile(hFile, buffer, dwBytesToWrite, &dwBytesWritten, NULL);
+        if(bErrorFlag == FALSE || dwBytesWritten != dwBytesToWrite)
+        {
+            UnlockFile(hAppend, dwPos, 0, dwBytesRead, 0);
+            CloseHandle(hFile);
+            return FAIL;
+        }
+        memset(buffer, 0, MAX_LOG_LINE_LEN);
+    }
+    else
+    {
+         WINDOWS_WRITE_ENTRY("  MQCSP_user: \"\"%s", "\n");
+    }
+    WINDOWS_WRITE_ENTRY("  MQCD_MQCSP_identical: %s\n", (outputValues.identicalCDCSP) ? "true" : "false");
+    WINDOWS_WRITE_ENTRY("  MQCSP_valid: %s\n", (outputValues.CSPValid) ? "true" : "false");
+
+    // Close the file handle
+    CloseHandle(hFile);
+
+    return OK;
+}
+#elif MQPL_NATIVE==MQPL_UNIX
+{
+    FILE * File;
+
+    File = fopen(path, "a");
+    if(File)
+    {
+        /* Lock the file on UNIX */
+        flock(fileno(File), LOCK_EX);
+
+        /* Write the log output as a YAML entry */
+        fprintf(File, "-%s", "\n");
+        fprintf(File, "  timestamp: \"%s\"\n", outputValues.timestamp);
+        fprintf(File, "  remote_conname: \"%s\"\n", outputValues.conname);
+        fprintf(File, "  remote_appuser: \"%s\"\n", outputValues.remoteAppUser);
+        fprintf(File, "  MQCD_set: %s\n", (outputValues.CDset) ? "true" : "false");
+        fprintf(File, "  MQCD_user: \"%s\"\n", (outputValues.CDset) ? outputValues.CDUser : "");
+        fprintf(File, "  MQCSP_set: %s\n", (outputValues.CSPSet) ? "true" : "false");
+        if(outputValues.CSPSet)
+        {
+            fprintf(File, "  MQCSP_user: \"%.*s\"\n", outputValues.CSPUserLen, outputValues.CSPUser);
+        }
+        else 
+        {
+            fprintf(File, "  MQCSP_user: \"\"%s", "\n");
+        }
+        fprintf(File, "  MQCD_MQCSP_identical: %s\n", (outputValues.identicalCDCSP) ? "true" : "false");
+        fprintf(File, "  MQCSP_valid: %s\n", (outputValues.CSPValid) ? "true" : "false");
+        /* End of YAML entry */
+
+        /* Remove our Lock on the file */
+        flock(fileno(File), LOCK_UN);
+        /* Close the file */
+        fclose(File);
+    }
+    else
+    {
+        return FAIL;
+    }
+    return OK;
+}
+#else
+{
+    return FAIL;
+}
+#endif
 
 /* 
     Converts a channel name into a file name replacing non-alphanumeric characters 
@@ -371,12 +522,12 @@ void trim_whitespace(char * toTrim)
 /* 
 Functions for validating the credentials. One for Windows one for Unix
 */
-#ifdef OS_WINDOWS
-MQBOOL validateCredentials(PMQCSP pCSP)
+int validateCredentials(PMQCSP pCSP)
+#if MQPL_NATIVE==MQPL_WINDOWS_NT
 {
     HANDLE token;
     BOOL rc = FALSE;
-    MQBOOL toReturn = FALSE;
+    int toReturn = FALSE;
     char * user;
     char * pass;
 
@@ -421,21 +572,31 @@ MQBOOL validateCredentials(PMQCSP pCSP)
 
     return toReturn;
 }
-#else
-MQBOOL validateCredentials(PMQCSP pCSP)
+#elif MQPL_NATIVE==MQPL_UNIX
 {
-    MQBOOL rc = FALSE;
+    int rc = FALSE;
     char * commandBuffer;
     int buffLen = 0;
     int sizeOut = 0;
     int c;
     FILE * oampxstdout;
 
+    char amqoampxPath[MQ_PATH_MAX + 1] = {0};
+
+    /* build path for amqoampx and check it exists */
+    strcat(amqoampxPath, DEFAULT_INSTALL_LOCATION);
+    strcat(amqoampxPath, "/bin/security/amqoampx");
+    if(access(amqoampxPath, X_OK) != 0) {
+        /* We can't find and execute AMQOAMAX so we can't check credentials! */
+        return FAIL;
+    }
+
     /* Work out the command buffer length */
-    buffLen += strlen("echo ");
+    buffLen += strlen("echo \"");
     buffLen += pCSP->CSPPasswordLength;
-    buffLen += strlen(" | ");
-    buffLen += strlen("/opt/mqm/bin/security/amqoampx ");
+    buffLen += strlen("\" | ");
+    buffLen += strlen(amqoampxPath);
+    buffLen++; /* space after amqoampx path */
     buffLen += pCSP->CSPUserIdLength;
     buffLen++; /* Null character */
 
@@ -445,9 +606,11 @@ MQBOOL validateCredentials(PMQCSP pCSP)
     {
         /* Write the command assuming default location of mq install directory */
         memset(commandBuffer, '\0', buffLen);
-        strcat(commandBuffer, "echo ");
+        strcat(commandBuffer, "echo \"");
         strncat(commandBuffer, pCSP->CSPPasswordPtr, pCSP->CSPPasswordLength);
-        strcat(commandBuffer, " | /opt/mqm/bin/security/amqoampx ");
+        strcat(commandBuffer, "\" | ");
+        strcat(commandBuffer, amqoampxPath);
+        strcat(commandBuffer, " ");
         strncat(commandBuffer, pCSP->CSPUserIdPtr, pCSP->CSPUserIdLength);
 
         /* Call amqoampx and read the STDOUT */
@@ -469,5 +632,9 @@ MQBOOL validateCredentials(PMQCSP pCSP)
     }
 
     return rc;
+}
+#else
+{
+    return FAIL;
 }
 #endif

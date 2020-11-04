@@ -5,4 +5,4 @@
 
 set -e
 
-gcc -shared -fPIC -I/opt/mqm/inc -o /var/mqm/exits64/connwarn connwarn.c 
+gcc -m64 -I/opt/mqm/inc -shared -fPIC -o connwarn connwarn.c 
