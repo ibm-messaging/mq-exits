@@ -3,9 +3,8 @@
 This repository contains source code and related material for a set
 of IBM MQ exits.
 
-MQ has various types of exit points that can be used to extend the product,
-functionality and examples of some of them are included here. There is also
-source code for some exits provided with the product samples.
+MQ has various types of exit points that can be used to extend the product
+functionality, and examples of some of them are included here. 
 
 ## Documentation
 
