@@ -44,9 +44,13 @@
     #include <winbase.h>
     #define DllExport   __declspec( dllexport )
 #elif MQPL_NATIVE==MQPL_UNIX
+    #include <sys/wait.h>
+    #include <sys/prctl.h>
+    #include <signal.h>
     #include <limits.h>
     #include <sys/file.h>
     #include <unistd.h>
+    #include <errno.h>
     #define MQ_FNAME_MAX NAME_MAX
     #define MQ_PATH_MAX PATH_MAX
     #define DllExport
@@ -574,14 +578,15 @@ int validateCredentials(PMQCSP pCSP)
 }
 #elif MQPL_NATIVE==MQPL_UNIX
 {
-    int rc = FALSE;
-    char * commandBuffer;
-    int buffLen = 0;
-    int sizeOut = 0;
-    int c;
-    FILE * oampxstdout;
-
-    char amqoampxPath[MQ_PATH_MAX + 1] = {0};
+    int    rc = FALSE;
+    pid_t  amqoampxPID;
+    int    amqoampxINFD[2];
+    int    amqoampxOUTFD[2];
+    char   amqoampxPath[MQ_PATH_MAX + 1] = {0};
+    char   response[1000] = {0};
+    char * user;
+    char * execArgs[2] = {0};
+    int    bytesRead = 0;
 
     /* build path for amqoampx and check it exists */
     strcat(amqoampxPath, DEFAULT_INSTALL_LOCATION);
@@ -591,44 +596,79 @@ int validateCredentials(PMQCSP pCSP)
         return FAIL;
     }
 
-    /* Work out the command buffer length */
-    buffLen += strlen("echo \"");
-    buffLen += pCSP->CSPPasswordLength;
-    buffLen += strlen("\" | ");
-    buffLen += strlen(amqoampxPath);
-    buffLen++; /* space after amqoampx path */
-    buffLen += pCSP->CSPUserIdLength;
-    buffLen++; /* Null character */
+    /* Grab some memory to copy the userid into so we can add a null character at the end */
+    user = malloc( sizeof(char) * pCSP->CSPUserIdLength + 1);
 
-    /* Now we have the buffer size we need grab some memory for it */
-    commandBuffer = malloc(sizeof(char) * (buffLen));
-    if(commandBuffer)
+    if(user != NULL)
     {
-        /* Write the command assuming default location of mq install directory */
-        memset(commandBuffer, '\0', buffLen);
-        strcat(commandBuffer, "echo \"");
-        strncat(commandBuffer, pCSP->CSPPasswordPtr, pCSP->CSPPasswordLength);
-        strcat(commandBuffer, "\" | ");
-        strcat(commandBuffer, amqoampxPath);
-        strcat(commandBuffer, " ");
-        strncat(commandBuffer, pCSP->CSPUserIdPtr, pCSP->CSPUserIdLength);
+        /* Copy userid and password into the malloc'd memory with a null character at the end */
+        memset(user, '\0', pCSP->CSPUserIdLength + 1);
+        strncpy(user, pCSP->CSPUserIdPtr, pCSP->CSPUserIdLength);
 
-        /* Call amqoampx and read the STDOUT */
-        oampxstdout = popen(commandBuffer, "r");
-        if (oampxstdout) {
-            /* amqoampx will return '+0 [NULL]' when the userid/password is valid */
-            if(getc(oampxstdout) == '+')
+        execArgs[0] = amqoampxPath;
+        execArgs[1] = user;
+
+        /* Create two pipes for the input/output and fork here */
+        pipe(amqoampxINFD);
+        pipe(amqoampxOUTFD);
+        amqoampxPID = fork();
+
+        if(amqoampxPID == 0)
+        {
+            /* This code is ran by the child and starts amqoampx */
+            
+            /* First wire up the pipes we previously created     */
+            dup2(amqoampxOUTFD[0], STDIN_FILENO);
+            dup2(amqoampxINFD[1], STDOUT_FILENO);
+
+            /* Now call amqoampx */
+            execv(amqoampxPath, execArgs);
+
+            /* If something goes wrong we need to stop here. */
+            exit(1);
+        }
+
+        /* This code is only ran by the parent */
+
+        /* Close off the other ends of the pipes we don't need in the parent */
+        close(amqoampxOUTFD[0]);
+        close(amqoampxINFD[1]);
+        
+        /* Now the parent should write the password to the child (amqoampx) followed by a newline */
+        write(amqoampxOUTFD[1], pCSP->CSPPasswordPtr, pCSP->CSPPasswordLength);
+        write(amqoampxOUTFD[1], "\n", 1);
+
+        /* Finally the parent should read the response */
+        for(int i = 0; ;i++ )
+        {
+            int readBytes = 0;
+            readBytes = read(amqoampxINFD[0], &response[bytesRead], sizeof(response)-1-bytesRead);
+            if (readBytes == 0)
+                break; /* Done */
+            
+            if (readBytes > 0)
             {
-                rc = TRUE;
+                bytesRead += readBytes;
+                if ( bytesRead == sizeof(response)-1 )
+                    break;
             }
-            pclose(oampxstdout);
+            else
+            {
+                break;
+            }
+        }
+
+        /* If the response that came back was +0 [NULL] then the credentials were valid! */
+        if(response[0] == '+')
+        {
+            rc = TRUE;
         }
     }
 
     /* Free any memory we allocated */
-    if(commandBuffer)
+    if(user)
     {
-        free(commandBuffer);
+        free(user);
     }
 
     return rc;
