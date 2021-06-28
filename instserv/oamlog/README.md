@@ -44,11 +44,13 @@ stanza (the one with amqzfu in it). The order is important as the queue manager
 loads modules in the listed sequence and we need this module to be the
 first one called.
 
-  ServiceComponent:
-    Service=AuthorizationService
-    Name=Auditing.Auth.Service
-    Module=/var/mqm/exits64/oamlog
-    ComponentDataSize=0
+```
+ServiceComponent:
+  Service=AuthorizationService
+  Name=Auditing.Auth.Service
+  Module=/var/mqm/exits64/oamlog
+  ComponentDataSize=0
+```
 
 After updating the qm.ini file, stop and restart the queue manager for this
 new module to be recognised.
