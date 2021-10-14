@@ -241,8 +241,10 @@ static void MQENTRY OACopyAllAuth(
   }
 
   prepareToCopy = FALSE;
-  if (prepareToCopyUser != NULL)
+  if (prepareToCopyUser != NULL) {
     free(prepareToCopyUser);
+    prepareToCopyUser = NULL;
+  }
 
   return;
 }
