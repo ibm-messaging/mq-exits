@@ -62,10 +62,9 @@ extern pid_t gettid(void);
 #error Unsupported platform
 #endif
 
-#define LOGFILE "/var/mqm/audit/oamcrt.log"
 
 /*****************************************************************************/
-/* This module must be run before the default OAM, with chain continuing     */
+/* This module must be run before the default OAM, with the chain continuing */
 /* unless we have decided to reject a request.                               */
 /*                                                                           */
 /* Some functions - eg Init, Term and Refresh - will continue the chain      */
@@ -112,6 +111,8 @@ static void rpt(char *func,char *fmt,...);
 /****************************************************************************/
 /* This is where we'll write the logged information.                        */
 /****************************************************************************/
+#define LOGFILE "/var/mqm/audit/oamcrt.log"
+/* And the config file is here */
 #define CONFIGFILE "/var/mqm/audit/oamcrt.ini"
 
 /****************************************************************************/
@@ -122,6 +123,7 @@ FILE *fp = NULL;
 
 static MQLONG SupportedVersion = 0;
 static MQBOOL alreadyRead = FALSE;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /****************************************************************************/
 /* And some thread-specific variables that require appropriate support from */
@@ -137,10 +139,14 @@ static __thread PMQCHAR prepareToCopyUser = NULL;
 /* usernames and permitted patterns for a queue name                     */
 /*************************************************************************/
 static MQLONG readConfig(char *file) {
+  MQLONG CC = MQCC_OK;
   if (!alreadyRead) {
-    alreadyRead = TRUE;
+    if (pthread_mutex_lock(&mutex) == 0) {
+      alreadyRead = TRUE;
+      pthread_mutex_unlock(&mutex);
+    }
   }
-  return MQCC_OK;
+  return CC;
 }
 
 /*************************************************************************/
@@ -151,16 +157,22 @@ static MQLONG readConfig(char *file) {
 /* user hardcoded here just in case it's not in any external config.     */
 /*************************************************************************/
 static MQBOOL permittedObject(PMQCHAR pObjectName,PMQCHAR pUserName) {
-  if (strncmp(pObjectName,"NOTALLOWED",10)==0)
-      return FALSE;
-  return TRUE;
+  MQBOOL rc = TRUE;
+
+  if (pthread_mutex_lock(&mutex) == 0) { // Don't want config changing under us
+    if (strncmp(pObjectName,"NOTALLOWED",10)==0) {
+      rc = FALSE;
+    }
+    pthread_mutex_unlock(&mutex);
+  }
+  return rc;
 }
 
 /****************************************************************************/
 /* Function: OARefreshCache                                                 */
 /*                                                                          */
 /* Description:                                                             */
-/*   Available from MQSeries V5.2, this tells the OAM to refresh            */
+/*   This tells the OAM to refresh                                          */
 /*   any cache of userid/group/authorisation information that it might hold.*/
 /*                                                                          */
 /* Note:                                                                    */
@@ -204,16 +216,17 @@ static void MQENTRY OACopyAllAuth(
 {
   /* Write some log information if this looks plausible */
   if ((ObjectType == MQOT_Q || ObjectType == MQOT_MODEL_Q) && strncmp(pObjectName,"SYSTEM.",7) != 0) {
-    rpt("OACopyAllAuth", "Prep = %d ObjectType = %d Name = '%-48.48s'",
+    rpt("OACopyAllAuth", "Prep = %d ObjectType = %d Name = '%-48.48s' User = %s",
                prepareToCopy,
                ObjectType,
-               pObjectName);
+               pObjectName,
+               prepareToCopyUser?prepareToCopyUser:"<NULL>");
 
   }
 
   /****************************************************************************/
   /* Check whether the user is allowed to create the dynamic object           */
-  /* The prepareToCopy variables have been set it it looks like this is going */
+  /* The prepareToCopy variables have been set if it looks like this is going */
   /* to happen, including stashing the userid associated with the request     */
   /* Regardless of the outcome, clear out the thread-related stash            */
   /****************************************************************************/
@@ -256,13 +269,19 @@ static void MQENTRY OACheckAuth (
   PMQLONG  pReason)
 {
   /* Just log things that have a chance of being relevant */
-  if ((ObjectType == MQOT_Q || ObjectType == MQOT_MODEL_Q) && strncmp(pObjectName,"SYSTEM.",7) != 0) {
-    rpt("OACheckAuth", "Prep = %d ObjectType = %d Name = %-48.48s Auth = %d",
+  if ((ObjectType == MQOT_Q && strncmp(pObjectName,"SYSTEM.",7) != 0) || (ObjectType == MQOT_MODEL_Q)){
+    rpt("OACheckAuth", "Prep = %d ObjectType = %d Name = '%-48.48s' Auth = %08X",
                prepareToCopy,
                ObjectType,
                pObjectName,
                Authority);
   }
+
+
+  /* Set return values assuming OK */
+  *pCompCode = OA_DEF_CC;
+  *pReason   = MQRC_UNKNOWN_OBJECT_NAME;
+  *pContinuation = MQZCI_CONTINUE;
 
   prepareToCopy = FALSE;
   if (ObjectType == MQOT_Q) {
@@ -270,7 +289,6 @@ static void MQENTRY OACheckAuth (
       *pCompCode = MQCC_FAILED;
       *pReason = MQRC_NOT_AUTHORIZED;
       *pContinuation = MQZCI_STOP;
-      return;
     }
   } else if (ObjectType == MQOT_MODEL_Q && Authority == MQZAO_DISPLAY) {
     /* This check is allowed but we note it ready for the copyall later. Also stash */
@@ -279,9 +297,6 @@ static void MQENTRY OACheckAuth (
     prepareToCopyUser = strdup(pEntityData->EntityNamePtr);
   }
 
-  *pCompCode = OA_DEF_CC;
-  *pReason   = MQRC_UNKNOWN_OBJECT_NAME;
-  *pContinuation = MQZCI_CONTINUE;
   return;
 }
 
