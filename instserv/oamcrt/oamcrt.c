@@ -36,6 +36,7 @@
 /*                                                                           */
 /*****************************************************************************/
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
@@ -128,8 +129,8 @@ static MQBOOL alreadyRead = FALSE;
 /* between operations as the CopyAll will always follow a CheckAuth on the  */
 /* same thread when opening a model queue.                                  */
 /****************************************************************************/
-static __thread MQBOOL prepareToCopy;
-static __thread MQCHAR prepareToCopyUser[12];
+static __thread MQBOOL  prepareToCopy = FALSE;
+static __thread PMQCHAR prepareToCopyUser = NULL;
 
 /*************************************************************************/
 /* This is where I'd put the code to read a config file. It would list   */
@@ -227,7 +228,8 @@ static void MQENTRY OACopyAllAuth(
   }
 
   prepareToCopy = FALSE;
-  memset(prepareToCopyUser,0,sizeof(prepareToCopyUser));
+  if (prepareToCopyUser != NULL)
+    free(prepareToCopyUser);
 
   return;
 }
@@ -274,7 +276,7 @@ static void MQENTRY OACheckAuth (
     /* This check is allowed but we note it ready for the copyall later. Also stash */
     /* the username as it's not passed to the copyall                               */
     prepareToCopy = TRUE;
-    strncpy(prepareToCopyUser,pEntityData->EntityNamePtr,sizeof(prepareToCopyUser));
+    prepareToCopyUser = strdup(pEntityData->EntityNamePtr);
   }
 
   *pCompCode = OA_DEF_CC;
