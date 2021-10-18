@@ -1,20 +1,24 @@
 /* %Z% %W% %I% %E% %U% */
  /********************************************************************/
  /*                                                                  */
- /* Program name: AMQSPUT0                                           */
+ /* Program name: PUT0                                               */
  /*                                                                  */
  /* Description: Sample C program that puts messages to              */
  /*              a message queue (example using MQPUT)               */
+ /*                                                                  */
+ /*  SLIGHTLY MODIFIED FROM AMQSPUT0.C SAMPLE TO MAKE IT EASIER      */
+ /*   TO SPECIFY "DEFAULT" OPTIONS                                   */
+ /*                                                                  */
  /*   <copyright                                                     */
  /*   notice="lm-source-program"                                     */
  /*   pids="5724-H72"                                                */
- /*   years="1994,2019"                                              */
+ /*   years="1994,2021"                                              */
  /*   crc="2248028677" >                                             */
  /*   Licensed Materials - Property of IBM                           */
  /*                                                                  */
  /*   5724-H72                                                       */
  /*                                                                  */
- /*   (C) Copyright IBM Corp. 1994, 2019 All Rights Reserved.        */
+ /*   (C) Copyright IBM Corp. 1994, 2021 All Rights Reserved.        */
  /*                                                                  */
  /*   US Government Users Restricted Rights - Use, duplication or    */
  /*   disclosure restricted by GSA ADP Schedule Contract with        */
@@ -69,6 +73,10 @@
  /*  Environment variable MQSAMP_USER_ID can be set to authenticate  */
  /*  application. If it is set, a password must also be entered at   */
  /*  the prompt.                                                     */
+ /*  MODIFICATIONS: (3) and (4) can be given as '-1' to take         */
+ /*                 default values.                                  */
+ /*                 (5) can be given as "_" to take default value    */
+ /*                                                                  */
  /********************************************************************/
  #include <stdio.h>
  #include <stdlib.h>

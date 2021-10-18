@@ -69,12 +69,16 @@ The sequences of operations called by the queue manager were initially recorded
 using the OAMLOG module, also in this repository.
 
 ### Normal "create" (eg DEF QL)
+
+```
   [28966972.2828 @ Wed Oct 13 09:12:40 2021] OACheckAuth
         Object  : "Z                                               " [Queue]
         User    : "metaylor"
         Auth    : 0x00010000 [crt ]
-
+```
 ### Implicit creation by opening a model queue
+
+```
   [28966972.2829 @ Wed Oct 13 09:47:24 2021] OACheckAuth
         Object  : "SYSTEM.DEFAULT.MODEL.QUEUE                      " [Queue]
         User    : "metaylor"
@@ -97,3 +101,4 @@ using the OAMLOG module, also in this repository.
         Object  : "AMQ.616694CC23EA03F6                            " [Queue]
         Group   : "mqm"
         Auth    : 0x02FF3FFF [allmqi crt alladmsystem ]
+```
