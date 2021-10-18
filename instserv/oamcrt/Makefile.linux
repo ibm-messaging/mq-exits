@@ -1,0 +1,46 @@
+
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#              http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#     either express or implied.
+#
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+# (C) IBM Corporation 2021
+#
+
+# Where is MQ installed
+MQ=/opt/mqm
+
+SRC = oamcrt.c
+
+# Compile options for 64-bit
+CC64OPTS = -m64 -I$(MQ)/inc
+# Linker options to produce a shared object
+LDOPTS = -shared -fPIC
+LIBS64=-L$(MQ)/lib64
+
+# Build it into the regular directory for exits
+all:  /var/mqm/exits64/oamcrt_r \
+      bin/sput
+
+# Do the copy to final location
+/var/mqm/exits64/oamcrt_r: oamcrt_r
+	rm -f $@
+	cp -f oamcrt_r $@
+	chmod 555 $@
+
+# Build the module locally
+oamcrt_r: $(SRC) Makefile.linux
+	gcc $(CC64OPTS) -D_REENTRANT  -o $@ $(SRC) \
+	        $(LIBS64)  -lmqmzf_r -lmqm_r $(LDOPTS)
+
+bin/sput: sput.c
+	$(CC) $(CC64OPTS) -D_REENTRANT -o $@ sput.c $(LIBS64) -lmqm_r

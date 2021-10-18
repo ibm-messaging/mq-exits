@@ -48,7 +48,7 @@ first one called.
 ServiceComponent:
   Service=AuthorizationService
   Name=Auditing.Auth.Service
-  Module=/var/mqm/exits64/oamlog
+  Module=/var/mqm/exits64/oamlog_r
   ComponentDataSize=0
 ```
 
