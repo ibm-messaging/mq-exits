@@ -102,3 +102,6 @@ using the OAMLOG module, also in this repository.
         Group   : "mqm"
         Auth    : 0x02FF3FFF [allmqi crt alladmsystem ]
 ```
+
+## Linked blog post
+I wrote up more about this at https://marketaylor.synology.me/?p=1004
