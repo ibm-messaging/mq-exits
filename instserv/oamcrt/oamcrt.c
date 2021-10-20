@@ -285,7 +285,13 @@ static void MQENTRY OACheckAuth (
   *pReason   = MQRC_UNKNOWN_OBJECT_NAME;
   *pContinuation = MQZCI_CONTINUE;
 
+  /* Reset the modelq stashed information - if it's not been used already, then that */ 
+  /* was not the active operation.                                                   */
   prepareToCopy = FALSE;
+  if (prepareToCopyUser != NULL) {
+    free(prepareToCopyUser);
+    prepareToCopyUser = NULL;
+  }
   if (ObjectType == MQOT_Q) {
     if (Authority == MQZAO_CREATE && !permittedObject(pObjectName,pEntityData->EntityNamePtr)){
       *pCompCode = MQCC_FAILED;
