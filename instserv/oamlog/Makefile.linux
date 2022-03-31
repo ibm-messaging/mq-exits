@@ -8,7 +8,7 @@ SRC = oamlog.c
 # Compile options for 64-bit
 CC64OPTS = -m64 -I$(MQ)/inc
 # Linker options to produce a shared object
-LDOPTS = -shared -fPIC
+LDOPTS = -shared -fPIC  -Wl,-rpath,$(MQ)/lib64
 LIBS64=-L$(MQ)/lib64
 
 # Build it into the regular directory for exits
