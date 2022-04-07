@@ -891,6 +891,10 @@ static void MQENTRY OAAuthUser (
 /*   has allocated private storage to hold additional information about     */
 /*   the user, then this is the time to free it. No more calls will be made */
 /*   to the OAM for this connection instance of this user.                  */
+/*                                                                          */
+/*  This is ONLY called if one of the services in the chain has a set a     */
+/*  non-NULL correlation pointer, so you cannot necessarily rely on it being*/
+/*  called to simply indicate all MQDISCs.                                  */
 /****************************************************************************/
 static char *freeuserfmt = \
   "[" PRS "] OAFreeUser\n"

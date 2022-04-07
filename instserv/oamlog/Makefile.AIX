@@ -1,0 +1,17 @@
+all:  oamlog
+
+SRC = oamlog.c tid.c
+
+LIBS64=-L/usr/mqm/lib64
+LIBS32=-L/usr/mqm/lib
+CC64OPTS = -q64 -I/usr/mqm/inc
+
+
+oamlog : $(SRC) Makefile.AIX
+	cc_r $(CC64OPTS) -e MQStart -o $@ $(SRC) $(LIBS64) 
+	rm -f /var/mqm/errors/oamlog*
+	cp $@ /var/mqm/exits64/$@
+	
+
+dummy:
+	/bin/true
