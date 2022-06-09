@@ -1,4 +1,4 @@
-# CONNWARN
+# RENAME
 A sample client preconnect exit to override the supplied QM Name before issuing MQCONN
 
 ## Overview
@@ -8,12 +8,9 @@ This could be useful in several situations, for example if you wish to move an o
 
 ## Building
 The code and configuration examples assume the module will be be built as a **64-bit** threaded, dynamically-loaded module with `RenamePreconnectExit` as the entrypoint. Example compile commands for common development environments:
-* Linux
-** gcc -m64 -I/opt/mqm/inc -shared -fPIC -o rename rename.c 
-* OSX
-** clang rename.c -shared -I $MQ_INSTALLATION_DIR/inc -o rename
-* Windows
-** cl /LD rename.c
+* Linux  `gcc -m64 -I/opt/mqm/inc -shared -fPIC -o rename rename.c`
+* OSX  `clang rename.c -shared -I $MQ_INSTALLATION_DIR/inc -o rename`
+* Windows `cl /LD rename.c`
 
 Full instructions on building preconnect exits can be found in the [MQ documentation](https://www.ibm.com/docs/en/ibm-mq/9.2?topic=ueaemis-referencing-connection-definitions-using-pre-connect-exit-from-repository). 
 
