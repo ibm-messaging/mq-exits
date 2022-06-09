@@ -1,6 +1,9 @@
 # Changelog
 Newest updates are at the top of this file.
 
+## 2022-06-09
+* Add preconnect exit sample to modify requested queue manager name
+
 ## 2021-10-11
 * Add oamcrt Installable Service sample to restrict createable objects
 
