@@ -1,0 +1,28 @@
+
+
+# Where is MQ installed
+MQ=/opt/mqm
+
+SRC = oamok.c
+
+# Compile options for 64-bit
+CC64OPTS = -m64 -I$(MQ)/inc -I/usr/include/json-c
+# Linker options to produce a shared object
+LDOPTS = -shared -fPIC  -Wl,-rpath,$(MQ)/lib64
+LIBS64=-L$(MQ)/lib64
+
+# Build it into the regular directory for exits
+all:  /var/mqm/exits64/oamok
+
+# Do the copy to final location
+/var/mqm/exits64/oamok: oamok
+	rm -f $@
+	cp -f oamok $@
+	chmod 555 $@
+
+# Build the module locally
+oamok: $(SRC) Makefile.Linux dummy
+	gcc $(CC64OPTS) -D_REENTRANT  -o $@ $(SRC) \
+	        $(LIBS64)  -lmqmzf_r -lmqm_r $(LDOPTS) -ljson-c
+
+dummy: /bin/true

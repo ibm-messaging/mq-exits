@@ -1,0 +1,17 @@
+all:  /var/mqm/exits64/oamok
+
+SRC = oamok.c
+
+MQ=/usr/mqm
+LIBS64=-L$(MQ)/lib64 -L/opt/freeware/lib64
+LIBS32=-L$(MQ)/lib   -L/opt/freeware/lib
+CC64OPTS = -q64 -I/usr/mqm/inc -I/opt/freeware/include/json-c
+
+/var/mqm/exits64/oamok: oamok
+	cp oamok $@
+
+oamok:$(SRC) Makefile.AIX dummy
+	xlc_r $(CC64OPTS) -e MQStart -o $@ $(SRC) $(LIBS64) -ljson-c
+
+dummy:
+	/bin/true

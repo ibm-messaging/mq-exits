@@ -1,6 +1,9 @@
 # Changelog
 Newest updates are at the top of this file.
 
+## 2022-06-30
+* Add oamok sample to report successful authentication and authorisation
+
 ## 2022-06-09
 * Add preconnect exit sample to modify requested queue manager name
 

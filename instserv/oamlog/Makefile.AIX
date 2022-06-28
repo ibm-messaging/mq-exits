@@ -7,7 +7,7 @@ LIBS32=-L/usr/mqm/lib
 CC64OPTS = -q64 -I/usr/mqm/inc
 
 
-oamlog : $(SRC) Makefile.AIX
+oamlog : $(SRC) Makefile.AIX dummy
 	cc_r $(CC64OPTS) -e MQStart -o $@ $(SRC) $(LIBS64) 
 	rm -f /var/mqm/errors/oamlog*
 	cp $@ /var/mqm/exits64/$@

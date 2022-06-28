@@ -7,6 +7,8 @@ can be used to extend or replace the OAM.
 
 ## Contents
 
-* oamlog - Create a logfile of all calls made to the Authorisation Service.
-* oamcrt - Demonstrate how creation of objects can be controlled with granular
-           permissions based on the object name
+* oamlog  - Create a logfile of all calls made to the Authorisation Service.
+* oamcrt  - Demonstrate how creation of objects can be controlled with granular
+            permissions based on the object name
+* oamok   - Report successful authentications and authorisations in a 
+            JSON-formatted log
