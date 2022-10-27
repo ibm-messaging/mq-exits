@@ -4,7 +4,7 @@ This repository contains source code and related material for a set
 of IBM MQ exits.
 
 MQ has various types of exit points that can be used to extend the product
-functionality, and examples of some of them are included here. 
+functionality, and examples of some of them are included here.
 
 ## Documentation
 
@@ -30,11 +30,11 @@ See [CHANGELOG](CHANGELOG.md) in this directory.
 For feedback and issues relating specifically to this package, please use
 the [GitHub issue tracker](https://github.com/ibm-messaging/mq-exits/issues).
 
-Contributions to this package can be accepted under the terms of the IBM Contributor
-License Agreement, found in the [CLA file](CLA.md) of this repository. When
+Contributions to this package can be accepted under the terms of the Developer's Certificate
+of Origin, found in the [DCO file](DCO1.1.txt) of this repository. When
 submitting a pull request, you must include a statement stating you accept the terms
-in the CLA.
+in the DCO.
 
 ## Copyright
 
-© Copyright IBM Corporation 2020
+Copyright IBM Corporation 2020,2022
