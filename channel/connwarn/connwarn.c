@@ -45,13 +45,12 @@
     #define DllExport   __declspec( dllexport )
 #elif MQPL_NATIVE==MQPL_UNIX
     #include <sys/wait.h>
-    #include <sys/prctl.h>
     #include <signal.h>
     #include <limits.h>
     #include <sys/file.h>
     #include <unistd.h>
     #include <errno.h>
-    #define MQ_FNAME_MAX NAME_MAX
+    #define MQ_FNAME_MAX FILENAME_MAX
     #define MQ_PATH_MAX PATH_MAX
     #define DllExport
 #else
@@ -95,7 +94,11 @@ void trim_whitespace(char * toTrim);
     #define DEFAULT_INSTALL_LOCATION "C:\\Program Files\\IBM\\MQ"
 #elif MQPL_NATIVE==MQPL_UNIX
     #define DEFAULT_LOG_LOCATION "/var/mqm/errors/"
+#if defined _AIX    
+    #define DEFAULT_INSTALL_LOCATION "/usr/mqm"
+#else
     #define DEFAULT_INSTALL_LOCATION "/opt/mqm"
+#endif    
 #else
     /* Not supported */
 #endif
@@ -203,14 +206,14 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
                 outputValues.CSPUserLen = pCSP->CSPUserIdLength;
 
                 int validaterc = validateCredentials(pCSP);
-                if(validaterc == FALSE || validaterc == TRUE){
+                if(validaterc == FALSE || validaterc == TRUE){ // Although the rc appears boolean, we may also have FAIL
                     outputValues.CSPValid = validaterc;
                 }
                 else
                 {
                     /* If we get here the call to validate the credentials failed */
                     /* A likely cause is that amqoampx was not found */
-                    pParms->ExitResponse = MQXCC_FAILED;
+                    pParms->ExitResponse = MQXCC_CLOSE_CHANNEL;
                     return;
                 }
             }

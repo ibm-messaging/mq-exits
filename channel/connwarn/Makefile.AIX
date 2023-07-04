@@ -1,0 +1,5 @@
+all: connwarn_r
+
+
+connwarn_r : connwarn.c Makefile.AIX exit.exp
+	xlc_r -e MQStart -bE:exit.exp -o $@ -q64  connwarn.c -I/usr/mqm/inc -L/usr/mqm/lib64 -lbsd
