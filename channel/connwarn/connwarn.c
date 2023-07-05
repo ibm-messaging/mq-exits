@@ -2,7 +2,7 @@
 /*                                                                           */
 /* Module Name: connwarn.c                                                   */
 /*                                                                           */
-/* (C) IBM Corporation 2020                                                  */
+/* (C) IBM Corporation 2020, 2023                                            */
 /*                                                                           */
 /* AUTHOR: Rob Parker, IBM Hursley                                           */
 /*                                                                           */
@@ -27,7 +27,8 @@
 
 /* IBM MQ includes */
 #include <cmqc.h>             /* MQI header                          */
-#include <cmqxc.h>            /* Installable services header         */
+#include <cmqxc.h>            /* Channel definitions                 */
+#include <cmqcfc.h>           /* PCF and length definitions          */
 
 /* Common includes */
 #include <time.h>
@@ -62,6 +63,8 @@ struct logValues {
     char * timestamp;
     char * conname;
     char * remoteAppUser;
+    char * remoteProduct;
+    char * remoteVersion;
     MQBOOL CDset;
     char * CDUser;
     MQBOOL CSPSet;
@@ -70,7 +73,7 @@ struct logValues {
     MQBOOL identicalCDCSP;
     MQBOOL CSPValid;
 };
-#define DEFAULT_LOGVALUES "", "", "", FALSE, "", FALSE, 0, "", FALSE, FALSE
+#define DEFAULT_LOGVALUES "", "", "", "", "", FALSE, "", FALSE, 0, "", FALSE, FALSE
 
 /* Prototypes */
 int writeOutputEntry(char *, struct logValues);
@@ -206,16 +209,18 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
                 outputValues.CSPUserLen = pCSP->CSPUserIdLength;
 
                 int validaterc = validateCredentials(pCSP);
-                if(validaterc == FALSE || validaterc == TRUE){ // Although the rc appears boolean, we may also have FAIL
-                    outputValues.CSPValid = validaterc;
-                }
-                else
+                if (validaterc == FAIL) 
                 {
                     /* If we get here the call to validate the credentials failed */
                     /* A likely cause is that amqoampx was not found */
                     pParms->ExitResponse = MQXCC_CLOSE_CHANNEL;
                     return;
+                } 
+                else 
+                {  
+                    outputValues.CSPValid = validaterc;
                 }
+             
             }
         }
         
@@ -272,6 +277,8 @@ DllExport void MQENTRY ChlExit (PMQVOID pChannelExitParms,
         /* Now write out the output! */
         outputValues.conname = connectionName;
         outputValues.remoteAppUser = remoteUser;
+        outputValues.remoteVersion = pParms->RemoteVersion;
+        outputValues.remoteProduct = pParms->RemoteProduct;
         outputValues.CDUser = mqcdUser;
 
         {
@@ -323,6 +330,46 @@ DllExport void MQENTRY MQStart ( PMQCXP  pChannelExitParms
                      )
 {;}
 
+/* This table comes from the MQ product documentation for the INQUIRE_CHANNEL_STATUS PCF response */
+/* There may be other values, for other MQ implementations, but they are not listed on that page  */
+static char *unknownProductDesc = "Unknown";
+struct {
+  char *id;
+  char *desc;
+} remoteProducts[] = {
+  {"MQMM", "Queue Manager (non z/OS Platform)"},
+  {"MQMV", "Queue Manager on z/OS"},
+  {"MQCC", "IBM MQ C client"},
+  {"MQNM", "IBM MQ .NET fully managed client"},
+  {"MQJB", "IBM MQ Classes for JAVA"},
+  {"MQJM", "IBM MQ Classes for JMS (normal mode)"},
+  {"MQJN", "IBM MQ Classes for JMS (migration mode)"},
+  {"MQJU", "Common Java™ interface to the MQI"},
+  {"MQXC", "XMS client C/C++ (normal mode)"},
+  {"MQXD", "XMS client C/C++ (migration mode)"},
+  {"MQXN", "XMS client .NET (normal mode)"},
+  {"MQXM", "XMS client .NET (migration mode)"},
+  {"MQXU", "IBM MQ .NET XMS client (unmanaged/XA)"},
+  {"MQNU", "IBM MQ .NET unmanaged client"},
+  {NULL,""}
+};
+
+static char *remoteProductDecode(char *p) {
+   int i=0;
+
+   if (!p) {
+     return unknownProductDesc;
+   }
+
+   while (remoteProducts[i].id) {
+     if (!strncmp(remoteProducts[i].id,p,MQ_REMOTE_PRODUCT_LENGTH)) {
+       return remoteProducts[i].desc;
+     }  
+     i++;
+   }
+   return unknownProductDesc;
+}
+
 /*
     Function for opening, locking and writing the log entry to a given file location
 */
@@ -348,6 +395,9 @@ int writeOutputEntry(char * path, struct logValues outputValues)
     WINDOWS_WRITE_ENTRY("  timestamp: \"%s\"\n", outputValues.timestamp);
     WINDOWS_WRITE_ENTRY("  remote_conname: \"%s\"\n", outputValues.conname);
     WINDOWS_WRITE_ENTRY("  remote_appuser: \"%s\"\n", outputValues.remoteAppUser);
+    WINDOWS_WRITE_ENTRY("  remote_version: \"%8.8s\"\n", outputValues.remoteVersion);
+    WINDOWS_WRITE_ENTRY("  remote_product: \"%4.4s\"\n", outputValues.remoteProduct);
+    WINDOWS_WRITE_ENTRY("  remote_product_decode: \"%s\"\n", remoteProductDecode(outputValues.remoteProduct));
     WINDOWS_WRITE_ENTRY("  MQCD_set: %s\n", (outputValues.CDset) ? "true" : "false");
     WINDOWS_WRITE_ENTRY("  MQCD_user: \"%s\"\n", (outputValues.CDset) ? outputValues.CDUser : "");
     WINDOWS_WRITE_ENTRY("  MQCSP_set: %s\n", (outputValues.CSPSet) ? "true" : "false");
@@ -391,6 +441,12 @@ int writeOutputEntry(char * path, struct logValues outputValues)
         fprintf(File, "  timestamp: \"%s\"\n", outputValues.timestamp);
         fprintf(File, "  remote_conname: \"%s\"\n", outputValues.conname);
         fprintf(File, "  remote_appuser: \"%s\"\n", outputValues.remoteAppUser);
+
+        fprintf(File, "  remote_version: \"%8.8s\"\n", outputValues.remoteVersion);
+        fprintf(File, "  remote_product: \"%4.4s\"\n", outputValues.remoteProduct);
+        fprintf(File, "  remote_product_decode: \"%s\"\n", remoteProductDecode(outputValues.remoteProduct));
+
+
         fprintf(File, "  MQCD_set: %s\n", (outputValues.CDset) ? "true" : "false");
         fprintf(File, "  MQCD_user: \"%s\"\n", (outputValues.CDset) ? outputValues.CDUser : "");
         fprintf(File, "  MQCSP_set: %s\n", (outputValues.CSPSet) ? "true" : "false");

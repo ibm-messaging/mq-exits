@@ -38,6 +38,7 @@ Within either the default directory or the location specified in SCYDATA, log fi
 * What user was set in hte MQCSP. `MQCSP_user`
 * Whether the credentials in the MQCD and the MQCSP are identical to eachother, see below for more information. `MQCD_MQCSP_identical`
 * Whether the MQCSP credentials were valid. I.E. could be used to login to the OS. `MQCSP_valid`
+* The version and type of the other end of the channel. Both the 4 character code and a more readable expansion of that code are given.
 
 During operations, if user credentials are supplied via the MQCD but not via the MQCSP then IBM MQ will attempt to copy the credentials from the MQCD into the MQCSP. As such in the case where an application sends credentials only via the MQCD object it can appear that credentials were sent via the MQCSP. To attempt to indicate when this may of happened, this sample will compare the credentials in the MQCSP fields wiht those in the MQCD field and if they match will indicate this.
 
@@ -47,6 +48,9 @@ Below is an example of what an entry in the log output may look like:
   timestamp: "2020-11-04T11:45:04+0000"
   remote_conname: "127.0.0.1"
   remote_appuser: "mqm"
+  remote_version: "09030300"
+  remote_product: "MQCC"
+  remote_product_decode: "IBM MQ C client"
   MQCD_set: false
   MQCD_user: ""
   MQCSP_set: false
@@ -64,4 +68,4 @@ Below is an example of what an entry in the log output may look like:
 
 ## Change History
 * 1st November 2020     Initial release
-* 4th July     2023     Enable AIX     
+* 4th July     2023     Enable AIX. Add recording of remote product version.     
