@@ -575,7 +575,7 @@ void chlname_to_filename(char * chlname, char * filename, int maxsize)
 void trim_whitespace(char * toTrim)
 {
     char * pEnd = toTrim + (strlen(toTrim) -1);
-    while(isspace(*pEnd))
+    while(isspace(*pEnd) && pEnd > toTrim)
     {
         *pEnd = '\0';
         pEnd--;
@@ -641,17 +641,19 @@ int validateCredentials(PMQCSP pCSP)
     pid_t  amqoampxPID;
     int    amqoampxINFD[2];
     int    amqoampxOUTFD[2];
+    int    amqoampxStatus;
     char   amqoampxPath[MQ_PATH_MAX + 1] = {0};
     char   response[1000] = {0};
     char * user;
     char * execArgs[2] = {0};
     int    bytesRead = 0;
 
+
     /* build path for amqoampx and check it exists */
     strcat(amqoampxPath, DEFAULT_INSTALL_LOCATION);
     strcat(amqoampxPath, "/bin/security/amqoampx");
     if(access(amqoampxPath, X_OK) != 0) {
-        /* We can't find and execute AMQOAMAX so we can't check credentials! */
+        /* We can't find and execute AMQOAMPX so we can't check credentials! */
         return FAIL;
     }
 
@@ -697,7 +699,8 @@ int validateCredentials(PMQCSP pCSP)
         write(amqoampxOUTFD[1], pCSP->CSPPasswordPtr, pCSP->CSPPasswordLength);
         write(amqoampxOUTFD[1], "\n", 1);
 
-        /* Finally the parent should read the response */
+        /* Finally the parent should read the response - would probably want to put some timers */
+        /* around here, just in case                                                            */
         for(int i = 0; ;i++ )
         {
             int readBytes = 0;
@@ -722,6 +725,12 @@ int validateCredentials(PMQCSP pCSP)
         {
             rc = TRUE;
         }
+
+        /* Cleanup, and make sure we've reaped the child process */
+        close(amqoampxINFD[0]);
+        close(amqoampxOUTFD[0]);
+        waitpid(amqoampxPID, &amqoampxStatus, 0);
+      
     }
 
     /* Free any memory we allocated */
