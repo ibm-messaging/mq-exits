@@ -2,17 +2,17 @@
 
 A sample security exit for authenticating with JWT Tokens issued by a third-party issuer. In this demo, the third-party issuer is KeyCloak.
 
-## OVERVIEW
+## Overview
 In MQ 9.3.3, a new authentication mechanism has been added into IBM MQ - authenticating via JWT Tokens issued by a third-party issuer. This sample implements a security exit to provide token authentication capability without making changes to the original messaging applications. 
 
 When called as a security exit on a Client-Connection channel, the sample will connect to an external token issuer server, retrieve a JWT Token, and adopt a pre-configured user from the Token to authenticate to the IBM MQ Queue Manager. The exit will query a token from the token endpoint using CURL, and parse the response to obtain the token to be added into the MQCSP.
 
-## BUILDING
+## Building
 The code needs to be built as a 64-bit threaded, dynamically-loaded module with ChlExit as the entrypoint. When building, you must have CURL and JSON installed on your machine, and these libraries must be linked during the build. Full instructions on building channel exits can be found in the MQ documentation.
 
 Once built the exit must be copied into the MQ exits64 directory located under the MQ Data Directory (Commonly /var/mqm for UNIX).
 
-## CONFIGURATION
+## Configuration
 
 Below are sample steps and queue manager configuration to run the JWT Token demo.
 
@@ -64,7 +64,7 @@ On your Linux machine or environment, with MQ installed:
 9. Run the amqsputc sample to confirm that the exit is running and working:
    /opt/mqm/samp/bin/amqsputc Q1 DEMO
 
-## EXAMPLE OUTPUT
+## Example Output
 
 [vas@dupe1 DEMO]$ /opt/mqm/samp/bin/amqsputc Q1 DEMO
 Sample AMQSPUT0 start
