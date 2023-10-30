@@ -1,6 +1,7 @@
 # EXTJWTEXIT
 
 A sample security exit for authenticating with JWT Tokens issued by a third-party issuer. In this demo, the third-party issuer is KeyCloak.
+For details on JWT tokens and how to use them in your applications, see the [MQ Documentation](https://ibmdocs-test.dcs.ibm.com/docs/en/SSFKSJ_9.3.0_test?topic=tokens-using-authentication-in-application)
 
 ## Overview
 In MQ 9.3.4, a new authentication mechanism has been added into IBM MQ - authenticating via JWT Tokens issued by a third-party issuer. This sample implements a security exit to provide token authentication capability without making changes to the original messaging applications. 
