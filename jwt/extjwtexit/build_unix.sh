@@ -5,4 +5,4 @@
 
 set -e
 
-gcc -m64 -shared -fPIC -o /var/mqm/exits64/extjwtexit ./extjwtexit.c -I/opt/mqm/inc -ljson-c -lcurl
+sudo gcc -m64 -shared -fPIC -o /var/mqm/exits64/extjwtexit ./extjwtexit.c -I/opt/mqm/inc -ljson-c -lcurl
