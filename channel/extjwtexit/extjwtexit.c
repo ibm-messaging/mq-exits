@@ -78,7 +78,14 @@
 #define   CURL_LINKAGE
 #define   NULL_POINTER (void *)0
 
-static int debugPrint = 0;
+#ifndef FALSE
+#define FALSE (0)
+#endif
+#ifndef TRUE
+#define TRUE (1)
+#endif
+
+static int debugPrint = FALSE;
 
 /* Function prototypes */
 static int AuthTokenLogin(char *TokenEndpoint, char *UserId, char *Password, char *ClientId, char **response);
@@ -297,8 +304,9 @@ void MQENTRY ChlExit(
     {
       strncpy(scyData,pParms->ExitData,MQ_EXIT_DATA_LENGTH);
       scyData[MQ_EXIT_DATA_LENGTH] = 0;
-      if (strstr(scyData,DEBUG_OPTION))
+      if (strstr(scyData,DEBUG_OPTION)) { /* This is safe because scyData is known to be NULL-terminated */
         debugPrint = TRUE;
+      }  
       if (obtainToken(jwtTokenEndpoint, jwtTokenUsername, jwtTokenPassword, jwtTokenClientId, &token) != 0)
       {
         pParms->ExitResponse = MQXCC_CLOSE_CHANNEL;
