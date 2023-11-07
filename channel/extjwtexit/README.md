@@ -1,6 +1,6 @@
 # EXTJWTEXIT
 
-A sample security exit for authenticating with JWT Tokens issued by a third-party issuer. In this demo, the third-party issuer is KeyCloak.
+A sample security exit for authenticating with JWT Tokens issued by a third-party issuer.
 For details on JWT tokens and how to use them in your applications, see the [MQ Documentation](https://www.ibm.com/docs/en/ibm-mq/latest?topic=tokens-using-authentication-in-application)
 
 ## Overview
@@ -44,7 +44,7 @@ gcc -m64 -shared -fPIC -o /var/mqm/exits64/extjwtexit ./extjwtexit.c -I/opt/mqm/
 cd /var/mqm/qmgrs/DEMO/ssl
 runmqakm -keydb -create -db tokens.kdb -pw wibble
 ```
-5. Retrieve the certificates and add them into the certificate keystore. There are different ways in which you can retrieve the certificates, one way would be by issuing a CURL GET command on the AuthToken server and retrieving the appropriate RSA256 certificate. Copy the certificate into a separate file, e.g. keycloak.cer (surround the certificate with -----BEGIN CERTIFICATE---- and -----END CERTIFICATE----- tags).
+5. Retrieve the certificates and add them into the certificate keystore. This will be dependent on your authentication server, but if it exposes a JWKS endpoint (as most OIDC services will), it may be as simple as issuing an HTTP 'GET' from a browser and selecting the appropriate RSA256 certificate from the list returned. Copy the certificate into a separate file, e.g. keycloak.cer (surround the certificate with -----BEGIN CERTIFICATE---- and -----END CERTIFICATE----- tags).
 6. Add the certificate into the keystore.
 ```
 runmqakm -cert -add -db tokens.kdb -pw wibble -file keycloak.cer -label label1
