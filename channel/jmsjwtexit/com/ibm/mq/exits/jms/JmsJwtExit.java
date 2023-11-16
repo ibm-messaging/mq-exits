@@ -63,24 +63,30 @@ public class JmsJwtExit implements WMQSecurityExit {
         if (mycsp == null) {
           mycsp = channelExitParms.createMQCSP();
           logger.info("4.creating CSP");
-          }
           try {
             mycsp.setAuthenticationType(CMQC.MQCSP_AUTH_ID_TOKEN);
             mycsp.setVersion(3);
-            mycsp.setToken(obtainToken());
-            logger.info("5.set obtained token");
-            channelExitParms.setSecurityParms(mycsp);
-          } catch (Exception ex) {
-            ex.printStackTrace();
+            if (obtainToken() != "") {
+              mycsp.setToken(obtainToken());
+              logger.info("5.set obtained token");
+              channelExitParms.setSecurityParms(mycsp);
+            }
+            else {
+              logger.info("Could not obtain the token, closing the channel");
+              channelExitParms.setExitResponse(CMQXC.MQXCC_CLOSE_CHANNEL);
+            }
+          } 
+          catch (Exception ex) {
+              ex.printStackTrace();
           }
+        }
+        break;
+      case CMQXC.MQXR_TERM:
+        logger.info("6.MQXR_TERM");
           break;
-        case CMQXC.MQXR_TERM:
-          logger.info("6.MQXR_TERM");
-          break;
-        default:
+      default:
           break;
       }
-      logger.info("Calling the Java exit");
       return agentBuffer;
     }
 
@@ -115,6 +121,7 @@ public class JmsJwtExit implements WMQSecurityExit {
         access_token = myJsonObject.getString("access_token");
         logger.info("Using token:" + access_token);
       } catch (Exception e) {
+        logger.info("Using token:" + access_token);
         e.printStackTrace();
       }
       return access_token;

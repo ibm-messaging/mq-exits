@@ -58,11 +58,8 @@ public class JmsPutGet {
         private static final int PORT = 1513; // Listener port for your queue manager
         private static final String CHANNEL = " "; // Channel name
         private static final String QMGR = "DEMO"; // Queue manager name
-        //private static final String APP_USER = "admin"; // User name that application uses to connect to MQ
-        //private static final String APP_PASSWORD = "_APP_PASSWORD_"; // Password that the application uses to connect to MQ
         private static final String QUEUE_NAME = "Q1"; // Queue that the application uses to put and get messages to and from
-        private static final String CCDT = "file:///var/mqm/qmgrs/DEMO/@ipcc/AMQCLCHL.TAB"; // CCDT file to use 
-
+        private static final String CCDT = String.format("file://%s/%s",System.getenv("MQCHLLIB"),System.getenv("MQCHLTAB")); //CCDT file to use 
 
         /**
          * Main method
@@ -94,14 +91,10 @@ public class JmsPutGet {
                         // Set the properties
                         cf.setStringProperty(WMQConstants.WMQ_HOST_NAME, HOST);
                         cf.setIntProperty(WMQConstants.WMQ_PORT, PORT);
-                        //cf.setStringProperty(WMQConstants.WMQ_CHANNEL, CHANNEL);
                         cf.setIntProperty(WMQConstants.WMQ_CONNECTION_MODE, WMQConstants.WMQ_CM_CLIENT);
                         cf.setStringProperty(WMQConstants.WMQ_QUEUE_MANAGER, QMGR);
                         cf.setStringProperty(WMQConstants.WMQ_APPLICATIONNAME, "JmsPutGet (JMS)");
                         cf.setBooleanProperty(WMQConstants.USER_AUTHENTICATION_MQCSP, true);
-                        //cf.setStringProperty(WMQConstants.USERID, APP_USER);
-                        //cf.setStringProperty(WMQConstants.PASSWORD, APP_PASSWORD);
-                        //cf.setStringProperty(WMQConstants.WMQ_SSL_CIPHER_SUITE, "*TLS12ORHIGHER");
                         cf.setStringProperty(WMQConstants.WMQ_CCDTURL, CCDT);
 
                         // Create JMS objects
