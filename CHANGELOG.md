@@ -1,6 +1,12 @@
 # Changelog
 Newest updates are at the top of this file.
 
+## 2023-11-16
+* Add jmsjwtexit JMS sample for apps to use to connect to the queue manager using JWTs
+
+## 2023-11-07
+* Add extjwtexit C sample for apps to use to connect to the queue manager using JWTs
+
 ## 2022-06-30
 * Add oamok sample to report successful authentication and authorisation
 
