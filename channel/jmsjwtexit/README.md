@@ -33,7 +33,6 @@ On your Linux machine or environment, with IBM MQ installed:
    2. strmqm DEMO
    3. runmqsc DEMO
    ```
-
 	DEFINE LISTENER(LIST1) TRPTYPE(TCP) PORT(1513) CONTROL(QMGR)
 	START LISTENER(LIST1)
 	DEFINE CHANNEL(CHAN1) CHLTYPE(SVRCONN) SSLCAUTH(OPTIONAL)
@@ -104,7 +103,7 @@ export JWT_TOKEN_CLIENTID=admin-clientid
 ```
 12. Run the JmsPutGet sample to confirm that the exit is running and working:
 ```
-"java -Dcom.ibm.mq.cfg.ClientExitPath.JavaExitsClasspath=/var/mqm/exits64 -cp /opt/mqm/java/lib/com.ibm.mq.allclient.jar:./javax.jms-api-2.0.1.jar:./json-20220320.jar:. com.ibm.mq.samples.jms.JmsPutGet"
+java -Dcom.ibm.mq.cfg.ClientExitPath.JavaExitsClasspath=/var/mqm/exits64 -cp /opt/mqm/java/lib/com.ibm.mq.allclient.jar:./javax.jms-api-2.0.1.jar:./json-20220320.jar:. com.ibm.mq.samples.jms.JmsPutGet
 ```
 ## Example Output
 ```
