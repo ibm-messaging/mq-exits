@@ -101,6 +101,8 @@ export JWT_TOKEN_USERNAME=admin
 export JWT_TOKEN_PWD=tokenuserpassword
 export JWT_TOKEN_CLIENTID=admin-clientid
 ```
+The demo was created with the simplest Keycloak server configuration: admin user and grant-type password. If you are using Keycloak in production, you must configure it correctly and choose the appropriate grant type, for example client_credentials and use client and client secret to get the token.
+
 12. Run the JmsPutGet sample to confirm that the exit is running and working:
 ```
 java -Dcom.ibm.mq.cfg.ClientExitPath.JavaExitsClasspath=/var/mqm/exits64 -cp /opt/mqm/java/lib/com.ibm.mq.allclient.jar:./javax.jms-api-2.0.1.jar:./json-20220320.jar:. com.ibm.mq.samples.jms.JmsPutGet
