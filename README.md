@@ -9,12 +9,12 @@ functionality, and examples of some of them are included here.
 ## Documentation
 
 More information about exit interfaces can be found starting at
-[this section](https://www.ibm.com/support/knowledgecenter/SSFKSJ_9.2.0/com.ibm.mq.ref.dev.doc/q108060_.htm) of the KnowledgeCentre.
+[this section](https://www.ibm.com/docs/en/ibm-mq/latest?topic=reference-user-exits-api-exits-installable-services) of the KnowledgeCentre.
 
 ## Prerequisites
 
-For the Distributed platforms, all exits are written in C. No other languages are supported. So you
-must have a C compiler.
+For the Distributed platforms, most exits are written in C. You must have a C compiler.
+For the JMS JWT exit, see required libraries in the [jmsjwtexit README](https://github.com/ibm-messaging/mq-exits/channel/jmsjwtexit/README.md).
 
 ## Health Warning
 
