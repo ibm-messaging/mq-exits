@@ -13,8 +13,9 @@ More information about exit interfaces can be found starting at
 
 ## Prerequisites
 
-For the Distributed platforms, most exits are written in C. You must have a C compiler.
-For the JMS JWT exit, see required libraries in the [jmsjwtexit README](https://github.com/ibm-messaging/mq-exits/blob/master/channel/jmsjwtexit/README.md).
+* For the Distributed platforms, most exits are written in C. You must have a C compiler.
+* For the JMS JWT exit, see required libraries in the [jmsjwtexit README](https://github.com/ibm-messaging/mq-exits/blob/master/channel/jmsjwtexit/README.md).
+* For the OTel API Exit, you need a C++ compiler and be able to build the OpenTelemetry CPP SDK libraries
 
 ## Health Warning
 
@@ -37,4 +38,4 @@ in the DCO.
 
 ## Copyright
 
-Copyright IBM Corporation 2020,2022
+Copyright IBM Corporation 2020,2024

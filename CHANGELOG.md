@@ -1,6 +1,9 @@
 # Changelog
 Newest updates are at the top of this file.
 
+## 2024-10-31
+* Add API Exit for OpenTelemetry context propagation
+
 ## 2023-11-16
 * Add jmsjwtexit JMS sample for apps to use to connect to the queue manager using JWTs
 

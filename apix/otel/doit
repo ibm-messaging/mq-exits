@@ -1,0 +1,19 @@
+make
+rc=$?
+if [ $rc -ne 0 ]
+then
+ exit $rc
+fi  
+
+b=bin
+
+cp $b/mqiotel.32 /var/mqm/exits/mqiotel
+cp $b/mqiotel_r.32 /var/mqm/exits/mqiotel_r
+
+cp $b/mqiotel.64 /var/mqm/exits64/mqiotel
+cp $b/mqiotel_r.64 /var/mqm/exits64/mqiotel_r
+
+cp $b/mqioteldl.so /var/mqm/exits64/mqioteldl.so
+
+exit 0
+
