@@ -1,14 +1,15 @@
 all:  oamlog
 
 SRC = oamlog.c tid.c
+CC  = /opt/IBM/openxlC/17.1.1/bin/ibm-clang_r
 
 LIBS64=-L/usr/mqm/lib64
 LIBS32=-L/usr/mqm/lib
-CC64OPTS = -q64 -I/usr/mqm/inc
+CC64OPTS = -m64 -I/usr/mqm/inc
 
 
 oamlog : $(SRC) Makefile.AIX dummy
-	cc_r $(CC64OPTS) -e MQStart -o $@ $(SRC) $(LIBS64) 
+	$(CC) $(CC64OPTS) -e MQStart -o $@ $(SRC) $(LIBS64) 
 	rm -f /var/mqm/errors/oamlog*
 	cp $@ /var/mqm/exits64/$@
 	

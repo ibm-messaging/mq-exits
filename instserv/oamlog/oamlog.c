@@ -419,16 +419,15 @@ static char *OAEnumOptStr(MQLONG x,char *buf)
 }
 
 /*
- * Format a pointer. From WMQ V6 lots of the platforms are 64-bit
- * so we have to decide how wide to print. Don't like the default
+ * Format a pointer. Don't like the default
  * printing style for "%p"...
  */
 static char *OAPtrStr(MQPTR p, char *buf)
 {
-  if (sizeof(MQPTR) == 8)
-    sprintf(buf,"0x%016X",p);
+  if (p)
+    sprintf(buf,"0x%016lX",(unsigned long)p);
   else
-    sprintf(buf,"0x%08X",p);
+    sprintf(buf,"%s","NULL");
   return buf;
 }
 
