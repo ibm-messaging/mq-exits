@@ -413,6 +413,7 @@ static char *OAEnumOptStr(MQLONG x,char *buf)
    if (x & MQAUTHOPT_NAME_ALL_MATCHING)      strcat(buf,"name_all ");
    if (x & MQAUTHOPT_NAME_AS_WILDCARD)       strcat(buf,"name_wildcard ");
    if (x & MQAUTHOPT_NAME_EXPLICIT)          strcat(buf,"name_explicit ");
+   if (x & MQAUTHOPT_EXCLUDE_TEMP)              strcat(buf,"excl_temp ");
   }
   strcat(buf,"]");
   return buf;
