@@ -15,7 +15,9 @@
 */
 
 #include <map>
+#include <set>
 #include <string>
+#include <mutex>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -33,6 +35,7 @@ typedef struct tagHobjOptions hobjOptions;
 typedef hobjOptions *phobjOptions;
 struct tagHobjOptions {
   MQLONG propCtl; // The PROPCTL attribute on the queue, or -1 if unknown
+  MQHOBJ hObjManaged; // When an MQSUB creates a managed queue
   PMQGMO gmo;     // Currently-active GMO Options value so we can reset
   PMQPMO pmo;
 
@@ -46,6 +49,11 @@ struct tagHobjOptions {
 using namespace std;
 extern map<string, MQHMSG> objectHandleMap;
 extern map<string, phobjOptions> objectOptionsMap;
+extern set<string> ignoreSet;
+
+extern std::mutex objectHandleMapLock;
+extern std::mutex objectOptionsMapLock;
+extern std::mutex ignoreSetLock;
 
 extern string objectKey(PMQHCONN hc, PMQHOBJ ho);
 
@@ -59,3 +67,8 @@ extern string propsValue(PMQAXP pExitParms, PMQHCONN pHconn, MQHMSG mh, const ch
 extern void *mqotMalloc(size_t l);
 extern void mqotFree(void *p);
 extern void dumpHex(const char *title, const void *buf, int length);
+
+extern void optionsMapLock();
+extern void optionsMapUnlock();
+extern void handleMapLock();
+extern void handleMapUnlock();

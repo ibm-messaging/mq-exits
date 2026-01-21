@@ -31,6 +31,11 @@ using namespace std;
 
 map<string, MQHMSG> objectHandleMap;
 map<string, phobjOptions> objectOptionsMap;
+set<string> ignoreSet;
+
+std::mutex objectHandleMapLock;
+std::mutex objectOptionsMapLock;
+std::mutex ignoreSetLock;
 
 bool initialised = false;
 
@@ -106,6 +111,7 @@ MQHMSG getMsgHandle(PMQAXP pExitParms, PMQHCONN pHconn, PMQHOBJ pHobj) {
 
     pExitParms->Hconfig->MQCRTMH_Call(*pHconn, &cmho, &mh, &CC, &RC);
     if (CC == MQCC_OK) {
+      rpt("getMsgHandle adding key %s",key.c_str());
       objectHandleMap[key] = mh;
     }
   } else {
@@ -125,6 +131,20 @@ bool compareMsgHandle(PMQHCONN pHconn, PMQHOBJ pHobj, MQHMSG mh) {
     }
   }
   return rc;
+}
+
+void optionsMapLock() {
+objectOptionsMapLock.lock();
+}
+void optionsMapUnlock() {
+objectOptionsMapLock.unlock();
+}
+
+void handleMapLock() {
+objectHandleMapLock.lock();
+}
+void handleMapUnlock() {
+objectHandleMapLock.unlock();
 }
 
 extern "C" {
@@ -168,29 +188,55 @@ void mqotTerm() {
 
 void mqotDiscBefore(PMQAXP pExitParms, PMQAXC pExitContext, PPMQHCONN ppHconn, PMQLONG pCompCode, PMQLONG pReason) {
   PMQHCONN pHconn = *ppHconn;
+
+  rpt("> discBefore");
   // Delete anything in the map for this hConn. Need to know the hConn so can't do it in the After.
   // It's OK to delete, even if the DISC were to fail
 
   // This string is the start of all keys for this hConn
   string key = std::to_string(*pHconn) + "/";
 
+  rpt("  discBefore handleMapSize=%d optionsMapSize=%d",objectHandleMap.size(),objectOptionsMap.size());
+
   // The objectHandleMap only holds the HMSG values. No further cleanup needed
+  handleMapLock();
   for (auto it = objectHandleMap.begin(); it != objectHandleMap.end();) {
     string mapKey = it->first;
     if (mapKey.find(key, 0) == 0) { // startswith()
+      rpt(" discBefore deleting handle key %s",mapKey.c_str());
+
       it = objectHandleMap.erase(it);
     }
   }
+  handleMapUnlock();
 
   // The objectOptionsMap holds structures that were malloced
+  optionsMapLock();
   for (auto it = objectOptionsMap.begin(); it != objectOptionsMap.end();) {
     string mapKey = it->first;
+
     if (mapKey.find(key, 0) == 0) { // startswith()
-      auto o = objectOptionsMap[key];
+      auto o = objectOptionsMap[mapKey];
+
+      if (o->hObjManaged != MQHO_UNUSABLE_HOBJ) {
+        auto managed_key = objectKey(pHconn, &o->hObjManaged);
+        if (objectOptionsMap.count(managed_key) == 1) {
+          rpt(" discBefore deleting options managed %s",managed_key.c_str());
+
+          auto managed_o = objectOptionsMap[managed_key];
+          mqotFree(managed_o);
+          objectOptionsMap.erase(managed_key);
+        }
+      }
       mqotFree(o);
+      rpt(" discBefore deleting options key %s",mapKey.c_str());
+
       it = objectOptionsMap.erase(it);
     }
   }
+  optionsMapUnlock();
+  rpt("< discBefore");
+
 }
 
 // End the "C" block

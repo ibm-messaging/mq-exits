@@ -32,19 +32,29 @@ namespace trace_api = opentelemetry::trace;
 static phobjOptions savePmo(PMQHCONN hc, PMQHOBJ ho, PMQPMO pmo) {
   phobjOptions o;
   string key = objectKey(hc, ho);
+  optionsMapLock();
   if (objectOptionsMap.count(key) == 0) {
+    rpt("savePmo using options key=%s",key.c_str());
     o = (hobjOptions *)mqotMalloc(sizeof(hobjOptions));
+    o->hObjManaged = MQHO_UNUSABLE_HOBJ;
+    o->propCtl = -1;
     objectOptionsMap[key] = o;
   } else {
     o = objectOptionsMap[key];
   }
+  optionsMapUnlock();
   o->pmo = pmo;
   return o;
 }
 
 static PMQPMO restorePmo(PMQHCONN hc, PMQHOBJ ho) {
   string key = objectKey(hc, ho);
-  return objectOptionsMap[key]->pmo;
+  rpt("restorePmo using options key=%s",key.c_str());
+
+  optionsMapLock();
+  auto pmo = objectOptionsMap[key]->pmo;
+  optionsMapUnlock();
+  return pmo;
 }
 
 static MQLONG pmoLength(PMQPMO pmo) {

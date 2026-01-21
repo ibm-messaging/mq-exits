@@ -26,7 +26,8 @@ LIBS32DOR=-L$(MQ)/lib
 CCOPTS= -g -I$(MQ)/inc
 CC64OPTS = -m64 $(CCOPTS)
 CC32OPTS = -m32 $(CCOPTS)
-DEPS =
+DEPS = mqiotel.h
+
 # Where can we find the OTel CPP libraries. This is where their build process
 # puts everything by default
 OTELLIBDIR=-L/usr/local/lib -L/usr/local/lib64

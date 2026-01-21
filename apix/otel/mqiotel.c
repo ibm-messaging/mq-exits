@@ -27,6 +27,8 @@
 #include <cmqec.h>
 #include <cmqxc.h>
 
+#include "mqiotel.h"
+
 #ifndef TRUE
 #define TRUE (1)
 #endif
@@ -87,6 +89,7 @@ static MQ_CB_EXIT CBBefore;
 static MQ_CALLBACK_EXIT CallbackBefore;
 
 static MQ_OPEN_EXIT OpenAfter;
+static MQ_SUB_EXIT  SubAfter;
 static MQ_CLOSE_EXIT CloseAfter;
 
 static MQ_DISC_EXIT DiscBefore;
@@ -96,7 +99,7 @@ struct {
   OTEL_INIT *init;
   OTEL_TERM *term;
 
-  MQ_OPEN_EXIT *openAfter;
+  MQ_OPEN_AND_SUB_EXIT *openAfter;
   MQ_CLOSE_EXIT *closeAfter;
   MQ_DISC_EXIT *discBefore;
 
@@ -255,6 +258,7 @@ void MQENTRY EntryPoint(PMQAXP pExitParms, PMQAXC pExitContext, PMQLONG pCompCod
     /// so that apps that don't match our requirements can still work with this qmgr albeit uninstrumented.
     if (rc == 0) {
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_OPEN, (PMQFUNC)OpenAfter, 0, pCompCode, pReason);
+      pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_SUB, (PMQFUNC)SubAfter, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_CLOSE, (PMQFUNC)CloseAfter, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_BEFORE, MQXF_PUT, (PMQFUNC)PutBefore, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_PUT, (PMQFUNC)PutAfter, 0, pCompCode, pReason);
@@ -264,7 +268,7 @@ void MQENTRY EntryPoint(PMQAXP pExitParms, PMQAXC pExitContext, PMQLONG pCompCod
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_GET, (PMQFUNC)GetAfter, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_BEFORE, MQXF_CB, (PMQFUNC)CBBefore, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_BEFORE, MQXF_CALLBACK, (PMQFUNC)CallbackBefore, 0, pCompCode, pReason);
-      pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_AFTER, MQXF_DISC, (PMQFUNC)DiscBefore, 0, pCompCode, pReason);
+      pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_BEFORE, MQXF_DISC, (PMQFUNC)DiscBefore, 0, pCompCode, pReason);
       pExitParms->Hconfig->MQXEP_Call(pExitParms->Hconfig, MQXR_CONNECTION, MQXF_TERM, (PMQFUNC)Terminate, 0, pCompCode, pReason);
     }
 
@@ -320,8 +324,25 @@ static void Terminate(PMQAXP pExitParms, PMQAXC pExitContext, PMQLONG pCompCode,
 // It also allows some of the operations to share - so Put and Put1 both do the same thing in the OTel processing
 static void OpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQOD ppObjDesc, PMQLONG pOptions, PPMQHOBJ ppHobj, PMQLONG pCompCode,
                       PMQLONG pReason) {
+  PMQHOBJ dummy_hobj = NULL;
+  char *v = "OPEN"; // Pass the verb so tracing can distinguish OPEN from SUB
+  PMQOD pObjDesc = *ppObjDesc;
+
   if (ot.openAfter) {
-    ot.openAfter(pExitParms, pExitContext, pHconn, ppObjDesc, pOptions, ppHobj, pCompCode, pReason);
+    ot.openAfter(pExitParms, pExitContext, v, pHconn, ppObjDesc, pOptions, ppHobj, &dummy_hobj, pCompCode, pReason);
+  }
+  return;
+}
+
+static void SubAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQSD ppSubDesc, PPMQHOBJ ppHobj, PPMQHOBJ ppHsub, PMQLONG pCompCode,
+                      PMQLONG pReason) {
+  PMQSD pMQSD = *ppSubDesc;
+  MQLONG dummy_options = 0;
+  PMQOD dummy_od = NULL;
+  char *v = "SUB"; // Pass the verb so tracing can distinguish OPEN from SUB
+
+  if (ot.openAfter && (pMQSD->Options & MQSO_MANAGED)) {
+    ot.openAfter(pExitParms, pExitContext, v, pHconn, &dummy_od, &dummy_options, ppHsub, ppHobj, pCompCode, pReason);
   }
   return;
 }
@@ -377,10 +398,9 @@ static void MQENTRY Put1After(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN p
 
 static void MQENTRY GetBefore(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHOBJ pHobj, PPMQMD ppMsgDesc, PPMQGMO ppGetMsgOpts,
                               PMQLONG pBufferLength, PPMQVOID ppBuffer, PPMQLONG ppDataLength, PMQLONG pCompCode, PMQLONG pReason) {
-  // All synchronous MQGETs can share the same message handle
-  MQHOBJ dummy = MQHO_UNUSABLE_HOBJ;
+
   if (ot.getBefore) {
-    ot.getBefore(pExitParms, pExitContext, pHconn, &dummy, ppMsgDesc, ppGetMsgOpts, pBufferLength, ppBuffer, ppDataLength, pCompCode, pReason);
+    ot.getBefore(pExitParms, pExitContext, pHconn, pHobj, ppMsgDesc, ppGetMsgOpts, pBufferLength, ppBuffer, ppDataLength, pCompCode, pReason);
   }
   return;
 }
@@ -406,7 +426,7 @@ static void MQENTRY GetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pH
 
   MQHOBJ dummy = MQHO_UNUSABLE_HOBJ;
   if (ot.getAfter) {
-    ot.getAfter(pExitParms, pExitContext, pHconn, &dummy, ppMsgDesc, ppGetMsgOpts, pBufferLength, ppBuffer, ppDataLength, pCompCode, pReason);
+    ot.getAfter(pExitParms, pExitContext, pHconn, pHobj, ppMsgDesc, ppGetMsgOpts, pBufferLength, ppBuffer, ppDataLength, pCompCode, pReason);
   }
   return;
 }

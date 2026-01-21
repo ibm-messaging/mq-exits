@@ -30,18 +30,47 @@ using namespace std;
 #define OPEN_GET_OPTIONS (MQOO_INPUT_AS_Q_DEF | MQOO_INPUT_SHARED | MQOO_INPUT_EXCLUSIVE)
 
 extern "C" {
-MQ_OPEN_EXIT mqotOpenAfter;
+#include "mqiotel.h"
+
+MQ_OPEN_AND_SUB_EXIT mqotOpenAfter;
 MQ_CLOSE_EXIT mqotCloseAfter;
 
 // Get rid of stashed details of the object that's being Closed
 void mqotCloseAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQHOBJ ppHobj, PMQLONG pOptions, PMQLONG pCompCode, PMQLONG pReason) {
 
-  auto key = objectKey(pHconn, *ppHobj);
+  string key = objectKey(pHconn, *ppHobj);
+
+  // The "ignored" queues do not appear in the regular maps. So we clean them up here.
+  ignoreSetLock.lock();
+  if (ignoreSet.count(key) == 1) {
+    // rpt("CloseAfter: Removing %s",key.c_str());
+    ignoreSet.insert(key);
+    ignoreSetLock.unlock();
+    return;
+  }
+  ignoreSetLock.unlock();
+
+  rpt("> CloseAfter hObj=%d",**ppHobj);
+
+  optionsMapLock();
   if (objectOptionsMap.count(key) == 1) {
     auto o = objectOptionsMap[key];
+    if (o->hObjManaged != MQHO_UNUSABLE_HOBJ) {
+      auto managed_key = objectKey(pHconn, &o->hObjManaged);
+      if (objectOptionsMap.count(managed_key) == 1) {
+         auto managed_o = objectOptionsMap[managed_key];
+         rpt("  CloseAfter deleting managed queue %s",managed_key.c_str());
+         mqotFree(managed_o);
+         objectOptionsMap.erase(managed_key);
+      }
+    }
+    rpt("  CloseAfter deleting key %s",key.c_str());
     mqotFree(o);
     objectOptionsMap.erase(key);
   }
+  optionsMapUnlock();
+
+  rpt("< CloseAfter");
 
   return;
 }
@@ -53,20 +82,48 @@ void mqotCloseAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPM
 //
 // Note that we can't (and don't need to) do the same for an MQPUT1 because the
 // information we are trying to discover is only useful on MQGET/CallBack.
-void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQOD ppObjDesc, PMQLONG pOptions, PPMQHOBJ ppHobj, PMQLONG pCompCode,
-                   PMQLONG pReason) {
+//
+// If the MQOPEN is for a topic (via MQSUB) AND there's a managed object created for the
+// target queue, then that will always have the MQOO_INQUIRE setup for us.
+
+void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQCHAR verb, PMQHCONN pHconn, PPMQOD ppObjDesc, PMQLONG pOptions,
+                   PPMQHOBJ ppHobj, PPMQHOBJ ppHobjManaged, PMQLONG pCompCode, PMQLONG pReason) {
   PMQOD od = *ppObjDesc;
 
   PMQHOBJ pHobj = *ppHobj;
+  PMQHOBJ pHobjManaged = *ppHobjManaged;
   MQLONG propCtl;
   MQLONG openOptions = *pOptions;
+
+  const char *n;
+  if (od && od->ObjectType == MQOT_Q) {
+    n = od->ObjectName;
+  } else {
+    n = "<<N/A>>";
+  }
+
+  // This queue gets referenced quite often internally when you open a real queue for
+  // the application. We stash the hConn/hObj so the MQGETs for it are ignored. If only
+  // to keep any tracing output less confusing.
+  string key = objectKey(pHconn, pHobj);
+  if (!strncmp(n,"SYSTEM.PROTECTION.POLICY.QUEUE", 48)) {
+    // rpt("OpenAfter: Adding ignored hObj %s",key.c_str());
+    ignoreSetLock.lock();
+    ignoreSet.insert(key);
+    ignoreSetLock.unlock();
+
+    return;
+  }
+
+  rpt("> OpenAfter for %s using object %-48.48s hObj=%d",verb,n, (pHobj?*pHobj:-1));
+
   // Do the MQINQ and stash the information
   // Only care if there's an INPUT option. We do the MQINQ on every relevant MQOPEN
   // because it might change between an MQCLOSE and a subsequent MQOPEN. The MQCLOSE
   // will, in any case, have discarded the entry from this map.
   // If the user opened the queue with MQOO_INQUIRE, then we can reuse the object handle.
   // Otherwise we have to do our own open/inq/close.
-  if ((od->ObjectType == MQOT_Q) && (openOptions & OPEN_GET_OPTIONS) != 0) {
+  if ((od && (od->ObjectType == MQOT_Q) && (openOptions & OPEN_GET_OPTIONS) != 0) || (pHobjManaged != NULL)) {
     auto key = objectKey(pHconn, pHobj);
     MQLONG CC, RC;
     propCtl = 0;
@@ -74,8 +131,8 @@ void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQ
     MQLONG selectors[] = {MQIA_PROPERTY_CONTROL};
     MQLONG values[1];
 
-    if ((openOptions & MQOO_INQUIRE) != 0) {
-      rpt("open: Reusing existing hObj");
+    if ((pHobjManaged == NULL) && (openOptions & MQOO_INQUIRE) != 0) {
+      rpt("%s: Reusing existing hObj",verb);
       pExitParms->Hconfig->MQINQ_Call(*pHconn, *pHobj, 1, selectors, 1, values, 0, NULL, &CC, &RC);
 
       if (CC == MQCC_OK) {
@@ -85,6 +142,28 @@ void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQ
         rptmqrc("open: Inq err", CC, RC);
         propCtl = -1;
       }
+    } else if (pHobjManaged)   {
+      rpt("open: Using managed hObj");
+      pExitParms->Hconfig->MQINQ_Call(*pHconn, *pHobjManaged, 1, selectors, 1, values, 0, NULL, &CC, &RC);
+      if (CC == MQCC_OK) {
+        rpt("Inq Response: %d", values[0]);
+        propCtl = values[0];
+      } else {
+        rptmqrc("open: Inq err", CC, RC);
+        propCtl = -1;
+      }
+      auto managed_key = objectKey(pHconn, pHobjManaged);
+      phobjOptions o = (hobjOptions *)mqotMalloc(sizeof(hobjOptions));
+      o->propCtl = propCtl;
+      o->hObjManaged = *pHobjManaged;
+      optionsMapLock();
+      // replace any existing value for this object handle
+      rpt("  OpenAfter adding options for managed key %s",managed_key.c_str());
+
+      objectOptionsMap[managed_key] = o;
+      optionsMapUnlock();
+
+
     } else {
       MQOD inqOd = {MQOD_DEFAULT};
       MQHOBJ inqHobj;
@@ -99,7 +178,8 @@ void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQ
       pExitParms->Hconfig->MQOPEN_Call(*pHconn, &inqOd, inqOpenOptions, &inqHobj, &CC, &RC);
 
       if (CC != MQCC_OK) {
-        rptmqrc("open: Reopen err", CC, RC);
+        rptmqrc("open: Reopen err",  CC, RC);
+
         propCtl = -1;
       } else {
         pExitParms->Hconfig->MQINQ_Call(*pHconn, inqHobj, 1, selectors, 1, values, 0, NULL, &CC, &RC);
@@ -118,13 +198,23 @@ void mqotOpenAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PPMQ
     // Create an object to hold the discovered value
     phobjOptions o = (hobjOptions *)mqotMalloc(sizeof(hobjOptions));
     o->propCtl = propCtl;
+    if (pHobjManaged) {
+      // Stash the managed hObj so we can deal with it when the SUB is CLOSEd
+      o->hObjManaged = *pHobjManaged;
+    } else {
+      o->hObjManaged = MQHO_UNUSABLE_HOBJ;
+    }
     // replace any existing value for this object handle
+    rpt("  OpenAfter adding options for key %s",key.c_str());
+    optionsMapLock();
     objectOptionsMap[key] = o;
+    optionsMapUnlock();
 
   } else {
-    rpt("open: not doing Inquire");
+    rpt("%s: not doing Inquire",verb);
   }
 
+  rpt("< OpenAfter for %s",verb);
   return;
 }
 }

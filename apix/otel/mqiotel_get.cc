@@ -49,18 +49,25 @@ static MQLONG gmoLength(PMQGMO gmo) {
 static phobjOptions saveGmo(PMQHCONN hc, PMQHOBJ ho, PMQGMO gmo) {
   phobjOptions o;
   string key = objectKey(hc, ho);
+  optionsMapLock();
+  rpt("saveGmo adding options key=%s",key.c_str());
+
   if (objectOptionsMap.count(key) == 0) {
     o = (hobjOptions *)mqotMalloc(sizeof(hobjOptions));
     objectOptionsMap[key] = o;
   } else {
     o = objectOptionsMap[key];
   }
+
+  optionsMapUnlock();
   o->gmo = gmo;
   return o;
 }
 
 static PMQGMO restoreGmo(PMQHCONN hc, PMQHOBJ ho) {
   string key = objectKey(hc, ho);
+  rpt("restoreGmo using options key=%s",key.c_str());
+
   return objectOptionsMap[key]->gmo;
 }
 
@@ -140,6 +147,14 @@ void mqotGetBefore(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQH
 
   MQLONG propGetOptions = gmo->Options & GETPROPSOPTIONS;
 
+  string key = objectKey(pHconn, pHobj);
+  if (ignoreSet.count(key) == 1) {
+    // rpt("GetBefore: Ignoring %s",key.c_str());
+    return;
+  }
+
+  rpt("> GetBefore");
+
   if (gmo->Version >= MQGMO_VERSION_4 && isValidHandle(gmo->MsgHandle)) {
     rpt("Using app-supplied msg handle");
   } else {
@@ -178,8 +193,9 @@ void mqotGetBefore(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQH
       }
     }
 
-    return;
   }
+  rpt("< GetBefore");
+  return;
 }
 
 // Extract the properties from the message, either with the properties API
@@ -200,10 +216,20 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
   bool haveMsg = true;
 
   int removed = 0;
+
+  string key = objectKey(pHconn, pHobj);
+  if (ignoreSet.count(key) == 1) {
+    // rpt("GetAfter: Ignoring %s",key.c_str());
+    return;
+  }
+
+  rpt("> GetAfter");
+
   if (*pCompCode != MQCC_OK && *pReason != MQRC_TRUNCATED_MSG_ACCEPTED) {
     haveMsg = false;
   }
   MQHMSG mh = gmo->MsgHandle;
+  bool foundProps = false;
   if (isValidHandle(mh)) {
     if (haveMsg) {
       rpt("Looking for context in handle");
@@ -217,6 +243,7 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
       if (CC == MQCC_OK) {
         rpt("Found traceparent property: %s", val.c_str());
         traceparentVal = val;
+        foundProps = true;
       } else {
         if (RC != MQRC_PROPERTY_NOT_AVAILABLE) {
           // Should not happen
@@ -228,6 +255,7 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
       if (CC == MQCC_OK) {
         rpt("Found tracestate property: %s", val.c_str());
         tracestateVal = val;
+        foundProps = true;
       } else {
         if (RC != MQRC_PROPERTY_NOT_AVAILABLE) {
           // Should not happen
@@ -246,8 +274,9 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
     // Should we also remove the properties?
     // Probably not worth it, as any app dealing with
     // properties ought to be able to handle unexpected props.
+  }
 
-  } else if (haveMsg && md && !strncmp(md->Format, MQFMT_RF_HEADER_2, MQ_FORMAT_LENGTH)) {
+  if (!foundProps && haveMsg && md && !strncmp(md->Format, MQFMT_RF_HEADER_2, MQ_FORMAT_LENGTH)) {
     rpt("Looking for context in RFH2");
     PMQRFH2 rfh2 = (PMQRFH2)buffer;
     MQLONG offset = MQRFH_STRUC_LENGTH_FIXED_2;
@@ -287,7 +316,7 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
       }
       }
     */
-  } else {
+  } else if (!foundProps) {
     rpt("No properties or RFH2 found");
   }
 
@@ -357,6 +386,7 @@ void mqotGetAfter(PMQAXP pExitParms, PMQAXC pExitContext, PMQHCONN pHconn, PMQHO
     rpt("No current span to update");
   }
 
+  rpt("< GetAfter");
   return;
 }
 
