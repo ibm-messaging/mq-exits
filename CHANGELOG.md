@@ -1,6 +1,9 @@
 # Changelog
 Newest updates are at the top of this file.
 
+## 2026-07-28
+* Add cipherSpecReplacer sample pre-connect exit
+
 ## 2026-01-21
 * Update the OTel API Exit to handle MQSUB managed queues
 
