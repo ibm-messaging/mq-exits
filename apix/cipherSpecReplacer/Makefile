@@ -25,15 +25,12 @@
 MQ_INSTALLATION_PATH ?= /opt/mqm
 
 CC      = gcc
-CFLAGS  = -Wall -Wextra -fPIC -O2 \
+CFLAGS  = -Wall -Wextra -Wno-unused-parameter -fPIC -O2 \
           -I$(MQ_INSTALLATION_PATH)/inc
-LDFLAGS = -shared \
-          -L$(MQ_INSTALLATION_PATH)/lib64 \
-          -Wl,-rpath,$(MQ_INSTALLATION_PATH)/lib64 \
-          -lmqm
+LDFLAGS = -shared
 
-TARGET  = cipherSpecReplacer.so
 SRC     = cipherSpecReplacer.c
+TARGET  = cipherSpecReplacer.so
 
 .PHONY: all clean
 

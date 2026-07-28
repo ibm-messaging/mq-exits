@@ -38,16 +38,15 @@
  * Building
  * --------
  * Linux / AIX (shared library):
- *   gcc -shared -fPIC -o cipherSpecReplacer.so \
- *       cipherSpecReplacer.c \
+ *   gcc -Wall -Wextra -Wno-unused-parameter -shared -fPIC -O2 \
  *       -I${MQ_INSTALLATION_PATH}/inc \
- *       -L${MQ_INSTALLATION_PATH}/lib64 -lmqic
+ *       -o cipherSpecReplacer.so \
+ *       cipherSpecReplacer.c
  *
  * Windows (DLL):
- *   cl /LD /I"%MQ_INSTALLATION_PATH%\tools\c\include" \
+ *   cl /LD /O2 /W4 /wd4100 /I"%MQ_INSTALLATION_PATH%\tools\c\include" \
  *      cipherSpecReplacer.c \
- *      "%MQ_INSTALLATION_PATH%\tools\lib64\mqic.lib" \
- *      /Fe:cipherSpecReplacer.dll /EXPORT:CipherSpecPreConnect
+ *      /Fe:cipherSpecReplacer.dll
  *
  * Registration (mqclient.ini or MQSCO/PreConnect stanza)
  * -------------------------------------------------------

@@ -5,6 +5,8 @@
 The **CipherSpec Replacer** is an IBM MQ client-side
 [PreConnect exit](https://www.ibm.com/docs/en/ibm-mq/latest?topic=functions-api-exits-clients#q109690___title__2) written in C. It intercepts every `MQCONN` or `MQCONNX` call before it reaches the queue manager and transparently rewrites a configurable list of deprecated or banned TLS CipherSpec values to a modern replacement — without requiring any changes to the application itself.
 
+> **Language scope:** This exit applies to **C-based MQ client applications** (and other languages that use the MQ C client library directly, such as COBOL or PL/I). It does **not** apply to Java or Jakarta Messaging (JMS/Jakarta EE) applications, which use their own TLS configuration path, nor to .NET or XMS applications.
+
 ### Why you would want to use this
 
 IBM MQ 10.0 removed support for TLS 1.0, SSLv3 and a number of TLS 1.2 CipherSpecs that were considered cryptographically weak (e.g. `TLS_RSA_WITH_3DES_EDE_CBC_SHA`, `RC4_MD5_US`). Applications that hard-code one of these values in their channel definition will fail to connect to a queue manager running IBM MQ 10.0 or later with an error such as `MQRC_SSL_INITIALIZATION_ERROR`.
@@ -45,12 +47,9 @@ This produces `cipherSpecReplacer.so` in the current directory.
 To build manually without `make`:
 
 ```bash
-gcc -Wall -Wextra -fPIC -O2 \
+gcc -Wall -Wextra -Wno-unused-parameter -fPIC -O2 \
     -I${MQ_INSTALLATION_PATH}/inc \
     -shared \
-    -L${MQ_INSTALLATION_PATH}/lib64 \
-    -Wl,-rpath,${MQ_INSTALLATION_PATH}/lib64 \
-    -lmqm \
     -o cipherSpecReplacer.so \
     cipherSpecReplacer.c
 ```
@@ -60,31 +59,45 @@ gcc -Wall -Wextra -fPIC -O2 \
 Use the Visual C++ compiler from a Developer Command Prompt:
 
 ```bat
-cl /LD /W4 /O2 /I"%MQ_INSTALLATION_PATH%\tools\c\include" cipherSpecReplacer.c "%MQ_INSTALLATION_PATH%\tools\lib64\mqic.lib" /Fe:cipherSpecReplacer.dll
+cl /LD /W4 /wd4100 /O2 /I"%MQ_INSTALLATION_PATH%\tools\c\include" cipherSpecReplacer.c /Fe:cipherSpecReplacer.dll
 ```
 
 This produces `cipherSpecReplacer.dll` in the current directory.
 
 ### Installing the exit library
 
-Copy the compiled library into the IBM MQ **exits64** directory under the MQ
-data directory. The MQ data directory is typically:
+Copy the compiled library into the IBM MQ **exits64** or **exits** directory under the MQ data directory. The MQ data directory is typically:
 
 | Platform | Default MQ data directory |
 |----------|--------------------------|
-| Linux / AIX | `/var/mqm/exits64` |
-| Windows | `C:\ProgramData\IBM\MQ\exits64` |
+| Linux / AIX | `/var/mqm/` |
+| Windows | `C:\ProgramData\IBM\MQ\` |
 
-> **Note:** The `exits64` directory is for 64-bit exits. If you are running a
-> 32-bit client, use `exits` instead. Ensure the file is readable by the user
-> account that runs your MQ client applications.
+> **Note:** The `exits64` directory is for 64-bit exits. If you are running a 32-bit client, use `exits` instead. Ensure the file is readable by the user account that runs your MQ client applications.
 
 ---
 
 ## Usage
 
-Once the library is installed, register the exit with the IBM MQ client by
-adding a `PreConnect` stanza to the client's `mqclient.ini` file.
+### Limitations
+
+**PreConnect exits cannot be chained.** IBM MQ only supports a single active PreConnect exit at a time. If you are already using another PreConnect exit for a different purpose (for example, to look up connection details from a repository), this exit cannot be used alongside it — you would need to merge the two pieces of functionality into a single exit.
+
+Once the library is installed, register the exit with the IBM MQ client by adding a `PreConnect` stanza to the client's `mqclient.ini` file.
+
+### Locating or creating mqclient.ini
+
+If you have not previously used an `mqclient.ini` file, you need to create one and tell the MQ client where to find it. Set the `MQCLNTCF` environment variable to the full path of the file before starting your application:
+
+```bash
+# Linux / AIX
+export MQCLNTCF=/etc/mqclient.ini
+
+# Windows
+set MQCLNTCF=C:\ProgramData\IBM\MQ\mqclient.ini
+```
+
+IBM MQ reads `MQCLNTCF` at connection time. If the variable is not set, MQ looks for `mqclient.ini` in a set of default locations (the MQ data directory and the current working directory). See the [IBM MQ documentation on the client configuration file](https://www.ibm.com/docs/en/ibm-mq/latest?topic=multiplatforms-mq-mqi-client-configuration-file-mqclientini) for the full search order.
 
 Add the following stanza to `mqclient.ini`, replacing `Module` with the location of your so or dll compiled exit:
 
@@ -111,36 +124,25 @@ The exit writes a line to `stderr` for every CipherSpec it rewrites:
 [CipherSpecExit] Rewriting CipherSpec: 'TLS_RSA_WITH_3DES_EDE_CBC_SHA' -> 'ANY_TLS12_OR_HIGHER'
 ```
 
-Run a test `MQCONNX` from an application that uses one of the mapped CipherSpecs
-and confirm this message appears. If the connection succeeds and the message is
-present, the exit is working correctly.
+Run a test `MQCONNX` from an application that uses one of the mapped CipherSpecs and confirm this message appears. If the connection succeeds and the message is present, the exit is working correctly.
 
 ---
 
 ## Modifications
 
-All configuration is done by editing [`cipherSpecReplacer.c`](cipherSpecReplacer.c)
-and recompiling. No external configuration files or environment variables are
-read at runtime.
+All configuration is done by editing [`cipherSpecReplacer.c`](cipherSpecReplacer.c) and recompiling. No external configuration files or environment variables are read at runtime.
 
 ### Adding, modifying or removing entries
 
-By default, every deprecated cipher is mapped to `ANY_TLS12_OR_HIGHER`, which
-tells IBM MQ to negotiate the strongest mutually supported TLS 1.2 (or later)
-cipher. If your environment requires a specific cipher suite — for example
-because a security policy mandates `TLS_RSA_WITH_AES_256_CBC_SHA256` — change
-the `new_spec` value in `CIPHER_MAP[]`:
+By default, every deprecated cipher is mapped to `ANY_TLS12_OR_HIGHER`, which tells IBM MQ to negotiate the strongest mutually supported TLS 1.2 (or later) cipher. If your environment requires a specific cipher suite — for example because a security policy mandates `TLS_RSA_WITH_AES_256_CBC_SHA256` — change the `new_spec` value in `CIPHER_MAP[]`:
 
 ```c
 { "TLS_RSA_WITH_3DES_EDE_CBC_SHA", "TLS_RSA_WITH_AES_256_CBC_SHA256" },
 ```
 
-Valid CipherSpec strings are listed in the IBM MQ documentation (see
-[References](#references) below). The replacement value must be no longer than
-32 characters (`MQ_SSL_CIPHER_SPEC_LENGTH`).
+Valid CipherSpec strings are listed in the IBM MQ documentation (see [References](#references) below). The replacement value must be no longer than 32 characters (`MQ_SSL_CIPHER_SPEC_LENGTH`).
 
-You can also add a new `{ "OLD_SPEC", "NEW_SPEC" }` line anywhere inside `CIPHER_MAP[]`
-**before** the `{ NULL, NULL }` sentinel to perform other mappings. To stop rewriting a particular CipherSpec, simply delete its line.
+You can also add a new `{ "OLD_SPEC", "NEW_SPEC" }` line anywhere inside `CIPHER_MAP[]` **before** the `{ NULL, NULL }` sentinel to perform other mappings. To stop rewriting a particular CipherSpec, simply delete its line.
 
 Each entry in `CIPHER_MAP[]` can map to a different target. For example:
 
@@ -155,10 +157,7 @@ static const CIPHER_MAPPING CIPHER_MAP[] = {
 
 ### Replacing the logging mechanism
 
-In its current form the exit writes substitution messages to `stderr`. For
-production use you may want to write to a dedicated log file. Replace the
-`fprintf(stderr, ...)` call inside `CipherSpecPreConnect` with your preferred
-logging approach.
+In its current form the exit writes substitution messages to `stderr`. For production use you may want to write to a dedicated log file. Replace the `fprintf(stderr, ...)` call inside `CipherSpecPreConnect` with your preferred logging approach.
 
 ---
 
