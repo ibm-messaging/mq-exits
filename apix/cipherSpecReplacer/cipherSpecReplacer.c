@@ -78,6 +78,11 @@
 #include <cmqxc.h>       /* Exit structures: MQNXP, MQCD, MQSCO     */
 #include <cmqbc.h>       /* PreConnect exit prototype                */
 
+#if (MQAT_DEFAULT == MQAT_WINDOWS_NT)
+  #define MQEXPORT __declspec(dllexport)
+#else
+  #define MQEXPORT 
+#endif
 /* ----------------------------------------------------------------- */
 /* CipherSpec mapping table                                           */
 /* Add as many OLD -> NEW pairs as you need.                          */
@@ -158,7 +163,7 @@ static void str_to_mqfield(const char *str, char *field, MQLONG field_len)
 /* Signature mandated by IBM MQ:                                      */
 /*   void MQ_PRECONNECT_EXIT(PMQNXP, PMQCHAR, PPMQCNO, PMQLONG, PMQLONG)        */
 /* ----------------------------------------------------------------- */
-void CipherSpecPreConnect(
+MQEXPORT void CipherSpecPreConnect(
     PMQNXP  pExitParms,   /*PreConnect exit parameter structure*/
     PMQCHAR pQMgrName,    /*Name of the queue manager*/
     PPMQCNO ppConnectOpts,/*Options controlling the action of MQCONNX*/

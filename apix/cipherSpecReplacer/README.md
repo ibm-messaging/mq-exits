@@ -60,12 +60,7 @@ gcc -Wall -Wextra -fPIC -O2 \
 Use the Visual C++ compiler from a Developer Command Prompt:
 
 ```bat
-cl /LD /W4 /O2 
-   /I"%MQ_INSTALLATION_PATH%\tools\c\include" ^
-   cipherSpecReplacer.c ^
-   "%MQ_INSTALLATION_PATH%\tools\lib64\mqic.lib" ^
-   /Fe:cipherSpecReplacer.dll ^
-   /EXPORT:CipherSpecPreConnect
+cl /LD /W4 /O2 /I"%MQ_INSTALLATION_PATH%\tools\c\include" cipherSpecReplacer.c "%MQ_INSTALLATION_PATH%\tools\lib64\mqic.lib" /Fe:cipherSpecReplacer.dll
 ```
 
 This produces `cipherSpecReplacer.dll` in the current directory.
