@@ -1,0 +1,18 @@
+make
+rc=$?
+if [ $rc -ne 0 ]
+then
+ exit $rc
+fi
+
+b=bin
+
+cp $b/mqinootel.32 /var/mqm/exits/mqinootel
+cp $b/mqinootel_r.32 /var/mqm/exits/mqinootel_r
+
+cp $b/mqinootel.64 /var/mqm/exits64/mqinootel
+cp $b/mqinootel_r.64 /var/mqm/exits64/mqinootel_r
+
+
+exit 0
+

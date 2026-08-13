@@ -1,0 +1,7 @@
+; Export file for the mqinootel IBM MQ API exit DLL.
+; EntryPoint is the MQ-registered exit function.
+; MQStart is required by some MQ platform loaders.
+LIBRARY mqinootel
+EXPORTS
+    EntryPoint
+    MQStart

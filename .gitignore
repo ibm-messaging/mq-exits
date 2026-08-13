@@ -1,0 +1,9 @@
+# Exclude binary artifacts that might be build
+*.a
+*.so
+*.dll 
+
+**/obj/*
+**/bin/
+
+.vscode

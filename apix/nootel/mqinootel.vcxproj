@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSBuild project for the mqinootel IBM MQ API exit DLL.
+
+  Prerequisites
+  ~~~~~~~~~~~~~
+  * Visual Studio Build Tools (or full VS) with the "Desktop development
+    with C++" workload installed.
+  * IBM MQ client or server installed so that the MQ header files and
+    import libraries are present.
+  * msbuild.exe in PATH  (e.g. run from a "Developer Command Prompt" or
+    after calling vcvarsall.bat).
+
+  Usage
+  ~~~~~
+    msbuild mqinootel.vcxproj /p:Configuration=Release /p:Platform=x64
+    msbuild mqinootel.vcxproj /p:Configuration=Debug   /p:Platform=x64
+
+  The default MQ installation path is C:\Program Files\IBM\MQ.
+  Override on the command line if yours differs:
+    msbuild mqinootel.vcxproj /p:MQInstallDir="D:\IBM\MQ" /p:Platform=x64
+
+  Output
+  ~~~~~~
+  bin\$(Platform)\$(Configuration)\mqinootel.dll (plus .pdb in Debug builds)
+-->
+<Project DefaultTargets="Build" ToolsVersion="Current"
+         xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ── Global properties ───────────────────────────────────────────── -->
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <RootNamespace>mqinootel</RootNamespace>
+    <ProjectName>mqinootel</ProjectName>
+
+    <!-- Default MQ installation directory; override with /p:MQInstallDir=... -->
+    <MQInstallDir Condition="'$(MQInstallDir)'==''">C:\Program Files\IBM\MQ</MQInstallDir>
+    <MQIncDir>$(MQInstallDir)\Tools\c\include</MQIncDir>
+    <MQLib64Dir>$(MQInstallDir)\Tools\lib64</MQLib64Dir>
+
+    <OutDir>bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+
+  <!-- ── Supported configurations ────────────────────────────────────── -->
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <!-- ── Toolset ──────────────────────────────────────────────────────── -->
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>   <!-- VS 2022; change to v142 for VS 2019 -->
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization Condition="'$(Configuration)'=='Release'">true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <!-- ── Compiler options ─────────────────────────────────────────────── -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- MQ headers -->
+      <AdditionalIncludeDirectories>$(MQIncDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+
+      <!-- Equivalent to Linux -g; always emit a PDB so the DLL is debuggable -->
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+
+      <!-- Warnings: /W3 is a reasonable default; treat warnings as errors -->
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+
+      <!-- MSVC extensions that mirror the Linux build flags -->
+      <PreprocessorDefinitions>_WIN32;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+
+      <!-- Release: full optimisation; Debug: none -->
+      <Optimization Condition="'$(Configuration)'=='Release'">MaxSpeed</Optimization>
+      <Optimization Condition="'$(Configuration)'=='Debug'">Disabled</Optimization>
+      <FunctionLevelLinking Condition="'$(Configuration)'=='Release'">true</FunctionLevelLinking>
+      <IntrinsicFunctions Condition="'$(Configuration)'=='Release'">true</IntrinsicFunctions>
+
+      <!-- Use the multi-threaded DLL runtime (matches MQ libraries) -->
+      <RuntimeLibrary Condition="'$(Configuration)'=='Release'">MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebugDLL</RuntimeLibrary>
+
+      <!-- Disable MSVC warnings for POSIX names that don't apply on Windows -->
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
+
+      <!-- C11 for size_t loop variable declarations -->
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+    </ClCompile>
+
+    <!-- ── Linker options ────────────────────────────────────────────── -->
+    <Link>
+      <AdditionalLibraryDirectories>$(MQLib64Dir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+
+      <!--
+        Link against the MQ import library.
+        mqm.lib     = non-reentrant (mirrors the Linux .64 target)
+        If you need the reentrant variant, change to mqm_r.lib (mirrors _r.64).
+      -->
+      <AdditionalDependencies>mqm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+
+      <!-- Export file — controls which symbols are visible outside the DLL -->
+      <ModuleDefinitionFile>mqinootel.def</ModuleDefinitionFile>
+
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- ── Source files ─────────────────────────────────────────────────── -->
+  <ItemGroup>
+    <ClCompile Include="mqiotel.c" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+
+</Project>

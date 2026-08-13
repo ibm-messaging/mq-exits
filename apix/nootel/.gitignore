@@ -1,0 +1,6 @@
+bin
+
+*.a
+*.so
+
+RUNME.sh
