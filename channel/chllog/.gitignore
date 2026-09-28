@@ -1,0 +1,15 @@
+# Visual Studio Code stuff
+.vscode
+
+# Visual Studio artifacts
+x64
+bin
+
+# Binaries
+*obj
+*dll
+*exp
+*.lib
+
+# The built exit
+chllog

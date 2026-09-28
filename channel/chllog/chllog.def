@@ -1,0 +1,4 @@
+LIBRARY chllog
+EXPORTS
+    ChlExit
+    MQStart

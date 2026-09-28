@@ -1,0 +1,2 @@
+chllog: chllog.c Makefile.linux
+	gcc -m64 -I/opt/mqm/inc -shared -fPIC -o chllog chllog.c

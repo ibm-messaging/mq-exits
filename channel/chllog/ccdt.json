@@ -1,0 +1,37 @@
+
+{
+  "channel": [{
+      "name": "SYSTEM.DEF.SVRCONN",
+      "clientConnection": {
+        "connection": [{
+            "host": "klein",
+            "port": 1414
+          }],
+        "queueManager": "QM1"
+      },
+      "type": "clientConnection",
+      "exits":
+      {
+        "security":
+        {
+          "name": "chllog(ChlExit)",
+          "userData": ""
+        },
+        "receive":
+        [
+          {
+          "name": "chllog(ChlExit)",
+          "userData": ""
+          }
+        ],
+        "send":
+        [
+           {
+             "name": "chllog(ChlExit)",
+             "userData": ""
+           }
+        ]
+      }
+    }]
+}
+

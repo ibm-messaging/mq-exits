@@ -1,0 +1,13 @@
+#****************************************************************************************#
+#* Module name : mqclient.ini                                                           *#
+#* Type        : IBM MQ client configuration file                                       *#
+#* Function    : Define the client configuration                                        *#
+#*                                                                                      *#
+#****************************************************************************************#
+
+SSL:
+  AllowTLSV13=TRUE
+
+ClientExitPath:
+   ExitsDefaultPath=c:/mqm/exits
+   ExitsDefaultPath64=c:/mqm/exits64

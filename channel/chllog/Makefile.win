@@ -1,0 +1,58 @@
+# Makefile.win - NMAKE / Windows Makefile for building chllog.dll (32-bit and 64-bit)
+#
+# Usage:
+#   nmake /f Makefile.win
+#   nmake /f Makefile.win clean
+#   nmake /f Makefile.win MQ_INSTALLATION_PATH="C:\Program Files\IBM\MQ"
+#
+# Outputs:
+#   x86\chllog.dll  - 32-bit build
+#   x64\chllog.dll  - 64-bit build
+#
+# NOTE: The compiler and linker must match the target architecture.
+# Run this makefile from the appropriate Visual Studio command prompt
+# (x86 for 32-bit, x64 for 64-bit) or use the VS "cross tools" prompt.
+# To build only one architecture, set ARCH=x86 or ARCH=x64.
+
+!IFNDEF MQ_INSTALLATION_PATH
+MQ_INSTALLATION_PATH = C:\Program Files\IBM\MQ
+!ENDIF
+
+CC   = cl.exe
+LINK = link.exe
+
+CFLAGS_COMMON = /nologo /c /MD /W3 /D_WINDOWS /D_CRT_SECURE_NO_WARNINGS /I"$(MQ_INSTALLATION_PATH)\tools\c\include"
+
+# --- 32-bit (x86) ---
+CFLAGS_X86 = $(CFLAGS_COMMON) /DWIN32
+LFLAGS_X86 = /nologo /dll /machine:X86 /def:chllog.def /libpath:"$(MQ_INSTALLATION_PATH)\tools\lib" mqm.lib
+
+# --- 64-bit (x64) ---
+CFLAGS_X64 = $(CFLAGS_COMMON) /DWIN64 /DWIN32
+LFLAGS_X64 = /nologo /dll /machine:X64 /def:chllog.def /libpath:"$(MQ_INSTALLATION_PATH)\tools\lib64" mqm.lib
+
+all:  x64\chllog.dll x86\chllog.dll
+
+# --- x86 targets ---
+x86:
+	if not exist x86 mkdir x86
+
+x86\chllog.obj: chllog.c x86
+	$(CC) $(CFLAGS_X86) /Fo"x86\chllog.obj" chllog.c
+
+x86\chllog.dll: x86\chllog.obj chllog.def
+	$(LINK) $(LFLAGS_X86) /out:x86\chllog.dll x86\chllog.obj
+
+# --- x64 targets ---
+x64:
+	if not exist x64 mkdir x64
+
+x64\chllog.obj: chllog.c x64
+	$(CC) $(CFLAGS_X64) /Fo"x64\chllog.obj" chllog.c
+
+x64\chllog.dll: x64\chllog.obj chllog.def
+	$(LINK) $(LFLAGS_X64) /out:x64\chllog.dll x64\chllog.obj
+
+clean:
+	-rd /s /q x86 2>nul
+	-rd /s /q x64 2>nul
