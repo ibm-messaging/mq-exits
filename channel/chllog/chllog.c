@@ -65,7 +65,10 @@ MQ_CHANNEL_EXIT ChlExit;
 static FILE *fp  = NULL;
 int closeFp = TRUE;
 
-static char *padding32 = "                                "; // long enough
+#define PADDING16 "                "
+#define PADDING32 (PADDING16 PADDING16)
+#define PADDING48 (PADDING32 PADDING16)
+
 static void rpt_fn(FILE *fp, const char *format, ...);
 /* Calls to rpt() must be done without already holding the exit lock */
 #define rpt(fp,format, ...)  { lock(); rpt_fn(fp, format, __VA_ARGS__); unlock(); }
@@ -102,7 +105,10 @@ static void unlock(void) {
 }
 #endif
 
-/* Log key elements from the exit invocation */
+/***************************************************************************/
+/* FUNCTION: logExit                                                       */
+/*   Log key elements from a channel exit invocation                       */
+/***************************************************************************/
 static void logExit(PMQCXP pCXP, PMQCD pCD) {
 
      // Trim down the string conversions a little
@@ -137,37 +143,58 @@ static void logExit(PMQCXP pCXP, PMQCD pCD) {
     rpt(fp, "Chl: %*.*s Exit : %*.*s [%d]",
         MQ_CHANNEL_NAME_LENGTH, MQ_CHANNEL_NAME_LENGTH, pCD->ChannelName,
         exitTypeLen, exitTypeLen, exitType,pCXP->ExitId);
-    rpt(fp, "     %*.*s Cause: %s [%d]",  MQ_CHANNEL_NAME_LENGTH, MQ_CHANNEL_NAME_LENGTH, padding32,
+    rpt(fp, "     %*.*s Cause: %s [%d]",  MQ_CHANNEL_NAME_LENGTH, MQ_CHANNEL_NAME_LENGTH, PADDING32,
         exitReason,pCXP->ExitReason);
 
     return;
 }
 
-/* Most of the parameters here are unused in this function. But they are needed to match
-   the MQI definition for calling a channel exit
- */
-void MQENTRY ChlExit(PMQVOID pChannelExitParms,
-        PMQVOID pChannelDefinition,
-        PMQLONG pDataLength,
-        PMQLONG pAgentBufferLength,
-        PMQVOID pAgentBuffer,
-        PMQLONG pExitBufferLength,
-        PMQPTR  pExitBufferAddr)
-{
-  MQLONG  rc  = OK;
-  MQBOOL  didOpen = FALSE;
-  char   *f = NULL;
+/***************************************************************************/
+/* FUNCTION: logPreConnExit                                                */
+/*   Log key elements from a preconnect exit invocation                    */
+/***************************************************************************/
+static void logPreconnExit(PMQNXP pNXP, MQCHAR48 qMgr) {
 
-  /* Convert the pointers to specific structure types */
-  PMQCXP pCXP = (PMQCXP)pChannelExitParms;
-  PMQCD  pCD  = (PMQCD)pChannelDefinition;
+     // Trim down the string conversions a little
+    char *exitType = MQXT_STR(pNXP->ExitId);
+    char *exitReason = MQXR_STR(pNXP->ExitReason);
+    int exitTypeLen = (int)strlen(exitType);
 
-  /***************************************************************************/
-  /* Switch on the reason the exit was called. In particular so we can do    */
-  /* any necessary init/term processing                                      */
-  /***************************************************************************/
-  switch (pCXP->ExitReason) {
-  case MQXR_INIT:
+    if (exitType[0] != 0) {
+      exitType += 5;
+      exitTypeLen -=5;
+    }
+    else {
+      exitType = "UNKNOWN";
+    }
+
+    if (exitReason[0] != 0) {
+      exitReason += 5;
+    }
+    else {
+      exitReason = "UNKNOWN";
+    }
+
+    rpt(fp, "QMgr: %s Exit : %*.*s [%d]",
+        qMgr?qMgr:"N/A",
+        exitTypeLen, exitTypeLen, exitType,pNXP->ExitId);
+    rpt(fp, "     Cause: %s [%d]", exitReason,pNXP->ExitReason);
+
+    return;
+}
+
+/***************************************************************************/
+/* FUNCTION: openLogFile                                                   */
+/*   Make sure the log file is open. The actual open is only done once.    */
+/*   And there's a mutex to avoid races. A counter is incremented, so we   */
+/*   can tell how many initialisations are done.                           */
+/*                                                                         */
+/*   If the log file cannot be opened, there is a non-zero return code     */
+/***************************************************************************/
+static int openLogFile() {
+    MQBOOL  didOpen = FALSE;
+    char   *f = NULL;
+    int rc = OK;
 
     lock();
 
@@ -193,7 +220,7 @@ void MQENTRY ChlExit(PMQVOID pChannelExitParms,
       } else {
     #if defined(_WIN32) || defined(WIN32)
         char *errbuf;
-        errbuf = strerror(errno);
+        errbuf = strerror(errno); /* The Windows version is thread-safe */
     #else
         char errbuf[128] = {0};
         strerror_r(errno, errbuf, sizeof(errbuf)-1); // XSI version by default. In the GNU version, we'd use the returned char * value */
@@ -213,13 +240,14 @@ void MQENTRY ChlExit(PMQVOID pChannelExitParms,
       rpt(fp, "Opened logfile %s", f); // Can't call rpt earlier as it would deadlock
     }
 
-    logExit(pCXP,pCD);
+    return rc;
+}
 
-    break;
-
-  case MQXR_TERM:
-    logExit(pCXP,pCD);
-
+/***************************************************************************/
+/* FUNCTION: closeLogFile                                                  */
+/*   Decrement the use count, and if appropriate close the log file.       */
+/***************************************************************************/
+static void closeLogFile() {
     lock();
     initCount--;
     if (initCount <= 0) {
@@ -234,6 +262,83 @@ void MQENTRY ChlExit(PMQVOID pChannelExitParms,
       initCount = 0;
     }
     unlock();
+}
+
+/***************************************************************************/
+/* FUNCTION: PreconnectExit                                                */
+/*   Entrypoint when being called as a PreConn exit                        */
+/***************************************************************************/
+void MQENTRY PreconnectExit ( PMQNXP  pExitParms,
+                              PMQCHAR pQMgrName,
+                              PPMQCNO ppConnectOpts,
+                              PMQLONG pCompCode,
+                              PMQLONG pReason)
+{
+  MQCD defaultCD = {MQCD_DEFAULT};
+  int rc = OK;
+
+  pExitParms->ExitResponse = MQXCC_OK;
+  pExitParms->ExitResponse2 = MQXR2_DEFAULT_CONTINUATION;
+
+  switch (pExitParms->ExitReason) {
+  case MQXR_INIT:
+     rc = openLogFile();
+     logPreconnExit(pExitParms, pQMgrName);
+     break;
+  case MQXR_TERM:
+      logPreconnExit(pExitParms, pQMgrName);
+      closeLogFile();
+     break;
+  default:
+    logPreconnExit(pExitParms, pQMgrName);
+    rpt(fp, "     Data: %*.*s", pExitParms->ExitDataLength, pExitParms->ExitDataLength, pExitParms->pExitDataPtr);
+    break;
+  }
+
+  if (rc != OK) {
+    *pCompCode = MQCC_FAILED;
+    *pReason = MQRC_PRECONN_EXIT_ERROR;
+    pExitParms->ExitResponse = MQXCC_SUPPRESS_EXIT;
+    pExitParms->ExitResponse2 = MQXR2_CONTINUE_CHAIN;
+  }
+
+}
+
+/***************************************************************************/
+/* FUNCTION: ChlExit                                                       */
+/*   Entrypoint when being called as a channel exit                        */
+/*                                                                         */
+/* Most of the parameters here are unused in this function. But they are   */
+/* needed to match the MQI definition for calling a channel exit.          */
+/***************************************************************************/
+void MQENTRY ChlExit(PMQVOID pChannelExitParms,
+        PMQVOID pChannelDefinition,
+        PMQLONG pDataLength,
+        PMQLONG pAgentBufferLength,
+        PMQVOID pAgentBuffer,
+        PMQLONG pExitBufferLength,
+        PMQPTR  pExitBufferAddr)
+{
+  MQLONG  rc  = OK;
+
+  /* Convert the pointers to specific structure types */
+  PMQCXP pCXP = (PMQCXP)pChannelExitParms;
+  PMQCD  pCD  = (PMQCD)pChannelDefinition;
+
+  /***************************************************************************/
+  /* Switch on the reason the exit was called. In particular so we can do    */
+  /* any necessary init/term processing                                      */
+  /***************************************************************************/
+  switch (pCXP->ExitReason) {
+  case MQXR_INIT:
+    rc = openLogFile();
+    logExit(pCXP,pCD);
+
+    break;
+
+  case MQXR_TERM:
+    logExit(pCXP,pCD);
+    closeLogFile();
     break;
 
   default:

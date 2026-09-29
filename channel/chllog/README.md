@@ -1,4 +1,4 @@
-This directory contains a channel exit that simply logs its invocations.
+This directory contains a channel (and preconnect) exit that simply logs its invocations.
 
 It can be configured on any of the channel-related exit points: I wrote it because of some questions on the behaviour of
 a lesser-used exit. This helped me validate under what conditions the exit would be called.
@@ -21,7 +21,6 @@ To use in a client, you need
 * MQCLNTCF to point at a client.ini file referencing the directory holding the exit
 
 The _RUNME.sh_ script handles all of that setup for a Linux system, and runs a simple program to demonstrate the output.
-
 
 ```
 make: 'chllog' is up to date.

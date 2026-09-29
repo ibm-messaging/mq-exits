@@ -16,8 +16,8 @@ export MQCLNTCF=$curdir/mqclient.ini
 export MQCHLLIB=$curdir
 export MQCHLTAB=ccdt.json
 
-# Force client mode
-export MQ_CONNECT_TYPE=CLIENT
+# Can force client mode
+# export MQ_CONNECT_TYPE=CLIENT
 
 # Where to send the output
 export CHLLOG_LOG_FILE=stdout
@@ -27,8 +27,8 @@ get=`which get0`
 if [ $? -ne 0 ]
 then
   # If not, then run the standard sample
-  get=/opt/mqm/samp/bin/amqsget
+  get=/opt/mqm/samp/bin/amqsgetc
 fi
 
-echo hello | /opt/mqm/samp/bin/amqsput X QM1
+echo hello | /opt/mqm/samp/bin/amqsputc X QM1
 $get X QM1
